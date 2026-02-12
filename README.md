@@ -9,7 +9,7 @@ Scan firmware images for CVEs, generate SBOMs, check CRA compliance, and more. A
 ### Homebrew (macOS & Linux)
 
 ```bash
-brew install exein-io/tap/analyzer
+brew install exein-io/tools/analyzer
 ```
 
 ### Shell installer
