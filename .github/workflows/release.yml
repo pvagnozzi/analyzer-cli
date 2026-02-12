@@ -69,7 +69,7 @@ jobs:
         continue-on-error: true
         with:
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          tap: exein-io/tap
+          tap: exein-io/tools
           formula: analyzer
           tag: ${{ github.ref_name }}
 
