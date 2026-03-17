@@ -1,0 +1,326 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+DRY_RUN=0
+
+show_help() {
+  cat <<'EOF'
+🚀 setup-dev for Linux
+
+Synopsis:
+  Bootstrap a professional Linux developer workstation for this repository.
+
+Usage:
+  bash ./scripts/linux/setup-dev [--dry-run] [--help]
+
+What it does:
+  • Installs Homebrew
+  • Installs PowerShell, Visual Studio Code, Git, Git LFS, GitHub CLI, GitFlow, Rust, and Oh My Posh
+  • Configures Oh My Posh in the current user's PowerShell profile
+  • Checks Docker Desktop or Podman Desktop and installs Podman when neither is present
+  • Supports common Linux package families: Debian/Ubuntu, Fedora/RHEL, Arch, and openSUSE
+  • Reports unsupported package managers such as Scoop and Chocolatey explicitly
+
+Behavior:
+  • Idempotent: safe to run multiple times
+  • English output
+  • Colorful logs with emoji
+EOF
+}
+
+color() {
+  local name="$1"
+  case "$name" in
+    cyan) printf '\033[36m' ;;
+    green) printf '\033[32m' ;;
+    yellow) printf '\033[33m' ;;
+    red) printf '\033[31m' ;;
+    magenta) printf '\033[35m' ;;
+    reset) printf '\033[0m' ;;
+  esac
+}
+
+log() {
+  local level="$1"
+  local message="$2"
+  local icon color_name
+  case "$level" in
+    INFO) icon="ℹ️"; color_name="cyan" ;;
+    OK) icon="✅"; color_name="green" ;;
+    WARN) icon="⚠️"; color_name="yellow" ;;
+    ERR) icon="❌"; color_name="red" ;;
+    STEP) icon="🚀"; color_name="magenta" ;;
+  esac
+  printf "%b%s %s%b\n" "$(color "$color_name")" "$icon" "$message" "$(color reset)"
+}
+
+run_cmd() {
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    log INFO "[dry-run] $*"
+  else
+    eval "$*"
+  fi
+}
+
+command_exists() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+detect_linux_family() {
+  if [[ -f /etc/debian_version ]]; then
+    echo debian
+  elif [[ -f /etc/fedora-release ]] || [[ -f /etc/redhat-release ]]; then
+    echo fedora
+  elif [[ -f /etc/arch-release ]]; then
+    echo arch
+  elif [[ -f /etc/os-release ]] && grep -qi "suse" /etc/os-release; then
+    echo suse
+  else
+    echo unknown
+  fi
+}
+
+install_base_dependencies() {
+  local family
+  family="$(detect_linux_family)"
+
+  case "$family" in
+    debian)
+      run_cmd "sudo apt-get update"
+      run_cmd "sudo apt-get install -y build-essential curl file git procps wget gpg"
+      ;;
+    fedora)
+      run_cmd "sudo dnf install -y @development-tools curl file git procps-ng wget gnupg2"
+      ;;
+    arch)
+      run_cmd "sudo pacman -Syu --noconfirm"
+      run_cmd "sudo pacman -S --noconfirm base-devel curl file git procps-ng wget gnupg"
+      ;;
+    suse)
+      run_cmd "sudo zypper --non-interactive refresh"
+      run_cmd "sudo zypper --non-interactive install -t pattern devel_basis"
+      run_cmd "sudo zypper --non-interactive install curl file git procps wget gpg2"
+      ;;
+    *)
+      log ERR "Unsupported Linux distribution family."
+      exit 1
+      ;;
+  esac
+}
+
+ensure_brew() {
+  if command_exists brew; then
+    log OK "Homebrew is already installed."
+    return
+  fi
+
+  install_base_dependencies
+  log INFO "Installing Homebrew..."
+  run_cmd 'NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+  if [[ "$DRY_RUN" -eq 0 ]]; then
+    if [[ -x /home/linuxbrew/.linuxbrew/bin/brew ]]; then
+      eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+    fi
+  fi
+}
+
+ensure_brew_shellenv() {
+  if ! command_exists brew; then
+    return
+  fi
+
+  local line rcfile
+  line='eval "$('"$(command -v brew)"' shellenv)"'
+  for rcfile in "$HOME/.profile" "$HOME/.bashrc" "$HOME/.zshrc"; do
+    if [[ ! -f "$rcfile" ]]; then
+      if [[ "$DRY_RUN" -eq 1 ]]; then
+        log INFO "[dry-run] touch \"$rcfile\""
+      else
+        touch "$rcfile"
+      fi
+    fi
+    if grep -Fqx "$line" "$rcfile"; then
+      continue
+    fi
+
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+      log INFO "[dry-run] printf '\n%s\n' '$line' >> \"$rcfile\""
+    else
+      printf '\n%s\n' "$line" >>"$rcfile"
+    fi
+  done
+}
+
+ensure_brew_package() {
+  local formula="$1"
+  local label="$2"
+
+  if brew list "$formula" >/dev/null 2>&1; then
+    log OK "$label is already installed."
+    return
+  fi
+
+  log INFO "Installing $label..."
+  run_cmd "brew install $formula"
+}
+
+ensure_rust() {
+  if command_exists rustup; then
+    log OK "Rustup is already installed."
+    return
+  fi
+
+  log INFO "Installing Rust with rustup..."
+  run_cmd 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y'
+}
+
+ensure_vscode() {
+  if command_exists code; then
+    log OK "Visual Studio Code is already installed."
+    return
+  fi
+
+  local family
+  family="$(detect_linux_family)"
+
+  case "$family" in
+    debian)
+      run_cmd "wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > /tmp/packages.microsoft.gpg"
+      run_cmd "sudo install -D -o root -g root -m 644 /tmp/packages.microsoft.gpg /etc/apt/keyrings/packages.microsoft.gpg"
+      run_cmd "sudo sh -c 'echo \"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main\" > /etc/apt/sources.list.d/vscode.list'"
+      run_cmd "sudo apt-get update"
+      run_cmd "sudo apt-get install -y code"
+      ;;
+    fedora)
+      run_cmd "sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc"
+      run_cmd "sudo sh -c 'cat > /etc/yum.repos.d/vscode.repo <<\"REPO\"\n[code]\nname=Visual Studio Code\nbaseurl=https://packages.microsoft.com/yumrepos/vscode\nenabled=1\ngpgcheck=1\nrepo_gpgcheck=1\ngpgkey=https://packages.microsoft.com/keys/microsoft.asc\nREPO'"
+      run_cmd "sudo dnf install -y code"
+      ;;
+    arch)
+      log WARN "Visual Studio Code is not installed automatically on Arch without an AUR helper. Please install it manually or adapt the script to your preferred helper."
+      ;;
+    suse)
+      run_cmd "sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc"
+      run_cmd "sudo zypper addrepo https://packages.microsoft.com/yumrepos/vscode vscode"
+      run_cmd "sudo zypper --gpg-auto-import-keys refresh"
+      run_cmd "sudo zypper --non-interactive install code"
+      ;;
+  esac
+}
+
+ensure_pwsh_profile() {
+  if ! command_exists pwsh; then
+    log WARN "PowerShell is not installed yet. Skipping profile setup."
+    return
+  fi
+
+  local profile_path profile_dir existing_line init_line
+  profile_path="$(pwsh -NoProfile -Command '$PROFILE.CurrentUserAllHosts')"
+  profile_dir="$(dirname "$profile_path")"
+
+  [[ -d "$profile_dir" ]] || run_cmd "mkdir -p \"$profile_dir\""
+  [[ -f "$profile_path" ]] || run_cmd "touch \"$profile_path\""
+
+  existing_line="$(grep -E 'oh-my-posh init pwsh --config' "$profile_path" | head -n 1 || true)"
+  if [[ -z "$existing_line" ]]; then
+    init_line='oh-my-posh init pwsh --config "$env:POSH_THEMES_PATH/jandedobbeleer.omp.json" | Invoke-Expression'
+  else
+    init_line="$existing_line"
+  fi
+
+  if grep -Fqx "$init_line" "$profile_path"; then
+    log OK "Oh My Posh profile initialization already exists."
+  else
+    log INFO "Adding Oh My Posh initialization to the current user's PowerShell profile..."
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+      log INFO "[dry-run] printf '\n%s\n' '$init_line' >> \"$profile_path\""
+    else
+      printf '\n%s\n' "$init_line" >>"$profile_path"
+    fi
+  fi
+
+  if [[ "$DRY_RUN" -eq 0 ]]; then
+    pwsh -NoProfile -Command ". \"$profile_path\""
+    log OK "PowerShell profile reloaded."
+  fi
+}
+
+ensure_container_stack() {
+  local docker_cli=0
+  local podman_cli=0
+  local docker_desktop=0
+  local podman_desktop=0
+
+  command_exists docker && docker_cli=1
+  command_exists podman && podman_cli=1
+  command_exists docker-desktop && docker_desktop=1
+  command_exists podman-desktop && podman_desktop=1
+
+  if { [[ "$docker_cli" -eq 1 ]] && [[ "$docker_desktop" -eq 1 ]]; } || { [[ "$podman_cli" -eq 1 ]] && [[ "$podman_desktop" -eq 1 ]]; }; then
+    log OK "A supported container desktop stack is already installed."
+    return
+  fi
+
+  log INFO "Installing Podman because no supported container desktop stack was detected."
+  ensure_brew_package podman "Podman CLI"
+
+  if command_exists flatpak; then
+    run_cmd "flatpak install --user -y flathub io.podman_desktop.PodmanDesktop"
+    return
+  fi
+
+  local family
+  family="$(detect_linux_family)"
+  case "$family" in
+    debian) run_cmd "sudo apt-get install -y flatpak" ;;
+    fedora) run_cmd "sudo dnf install -y flatpak" ;;
+    arch) run_cmd "sudo pacman -S --noconfirm flatpak" ;;
+    suse) run_cmd "sudo zypper --non-interactive install flatpak" ;;
+  esac
+  run_cmd "flatpak install --user -y flathub io.podman_desktop.PodmanDesktop"
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --help|-h)
+      show_help
+      exit 0
+      ;;
+    --dry-run)
+      DRY_RUN=1
+      ;;
+    *)
+      log ERR "Unknown argument: $1"
+      show_help
+      exit 1
+      ;;
+  esac
+  shift
+done
+
+log STEP "Step 1 - Installing package managers"
+ensure_brew
+if [[ "$DRY_RUN" -eq 0 ]] && command -v /home/linuxbrew/.linuxbrew/bin/brew >/dev/null 2>&1; then
+  eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+fi
+ensure_brew_shellenv
+log WARN "Scoop is Windows-only and has been skipped on Linux."
+log WARN "Chocolatey is Windows-only and has been skipped on Linux."
+
+log STEP "Step 2 - Installing developer tools"
+ensure_brew_package powershell "PowerShell"
+ensure_vscode
+ensure_brew_package git "Git"
+ensure_brew_package git-lfs "Git LFS"
+ensure_brew_package gh "GitHub CLI"
+ensure_brew_package git-flow-avh "GitFlow"
+ensure_brew_package oh-my-posh "Oh My Posh"
+ensure_rust
+
+log STEP "Step 3 - Checking container tooling"
+ensure_container_stack
+
+log STEP "Step 4 - Configuring the PowerShell profile"
+ensure_pwsh_profile
+
+log OK "Linux development environment setup completed."

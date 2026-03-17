@@ -1,2 +1,24 @@
-/target
-Cargo.lock
+/target/
+*.rs.bk
+
+# Environment and editor metadata
+/.idea/
+/.vscode/
+/.copilot/
+.DS_Store
+Thumbs.db
+
+# Coverage and profiling
+/coverage/
+*.profraw
+*.profdata
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+
+# Release artifacts
+/dist/*.zip
+/dist/*.tar.gz
+!/dist/install.sh

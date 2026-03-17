@@ -1,44 +1,36 @@
 //! Configuration management commands.
 
 use anyhow::Result;
-use console::style;
 
 use crate::config::ConfigFile;
+use crate::i18n::{self, Text};
 use crate::output;
 
 /// Show the current configuration.
 pub fn run_show() -> Result<()> {
     let config = ConfigFile::load().unwrap_or_default();
 
-    eprintln!(
-        "{}",
-        style("Analyzer CLI Configuration").bold().underlined()
-    );
-    eprintln!();
-    eprintln!(
-        "  {:>16}  {}",
-        style("Default profile:").bold(),
-        config.default_profile
-    );
+    output::hero(i18n::analyzer_cli_configuration(), i18n::tagline());
+    output::key_value(i18n::text(Text::DefaultProfile), &config.default_profile);
 
     if let Ok(path) = ConfigFile::path() {
-        eprintln!("  {:>16}  {}", style("Config file:").bold(), path.display());
+        output::key_value(i18n::text(Text::ConfigFile), path.display());
     }
 
     if config.profiles.is_empty() {
-        eprintln!("\n  No profiles configured. Run: analyzer login");
+        eprintln!("\n  {}", i18n::no_profiles_configured());
     } else {
-        eprintln!("\n  {}", style("Profiles:").bold());
+        eprintln!("\n  📚 {}", i18n::text(Text::Profiles));
         for (name, profile) in &config.profiles {
-            let url = profile.url.as_deref().unwrap_or("(default)");
+            let url = profile.url.as_deref().unwrap_or(i18n::default_value());
             let key_status = if profile.api_key.is_some() {
-                "set"
+                i18n::value_set()
             } else {
-                "not set"
+                i18n::value_not_set()
             };
             eprintln!(
                 "    {} -- URL: {}, API key: {}",
-                style(name).cyan(),
+                console::style(name).cyan(),
                 url,
                 key_status
             );
@@ -67,14 +59,12 @@ pub fn run_set(key: &str, value: &str, profile: Option<&str>) -> Result<()> {
             config.default_profile = value.to_string();
         }
         other => {
-            anyhow::bail!(
-                "Unknown config key: {other}\n\nValid keys: url, api-key, default-profile"
-            );
+            anyhow::bail!(i18n::unknown_config_key(other));
         }
     }
 
     config.save()?;
-    output::success(&format!("Set {key} = {value} (profile: {profile_name})"));
+    output::success(&i18n::set_config_value(key, value, profile_name));
     Ok(())
 }
 
@@ -85,19 +75,17 @@ pub fn run_get(key: &str, profile: Option<&str>) -> Result<()> {
     let p = config.profile(Some(profile_name));
 
     let value = match key {
-        "url" => p.url.as_deref().unwrap_or("(not set)"),
+        "url" => p.url.as_deref().unwrap_or(i18n::not_set_value()),
         "api-key" | "api_key" => {
             if p.api_key.is_some() {
-                "(set)"
+                i18n::value_set()
             } else {
-                "(not set)"
+                i18n::not_set_value()
             }
         }
         "default-profile" | "default_profile" => &config.default_profile,
         other => {
-            anyhow::bail!(
-                "Unknown config key: {other}\n\nValid keys: url, api-key, default-profile"
-            );
+            anyhow::bail!(i18n::unknown_config_key(other));
         }
     };
 

@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "hooks": {
+    "postToolUse": [
+      {
+        "type": "command",
+        "bash": "bash .github/hooks/rust-quality-gate/post-tool-use.sh",
+        "timeoutSec": 300
+      }
+    ]
+  }
+}

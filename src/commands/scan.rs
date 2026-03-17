@@ -14,6 +14,7 @@ use crate::client::models::{
     ComplianceType, CryptoFinding, CveFinding, HardeningFinding, IdfSymbolFinding, IdfTaskFinding,
     KernelFinding, MalwareFinding, PasswordFinding, ResultsQuery, SbomComponent, ScanTypeRequest,
 };
+use crate::i18n::{self, Text};
 use crate::output::{self, Format, format_score, format_status};
 
 /// Resolve a scan ID from either an explicit --scan or an --object flag.
@@ -75,12 +76,11 @@ pub async fn run_new(
             println!("{}", serde_json::json!({ "id": resp.id }));
         }
         _ if !wait => {
-            output::success(&format!("Scan {} created", style(resp.id).bold()));
-            eprintln!(
-                "\n  Check status:\n    {} {} --object {}",
-                style("analyzer").bold(),
-                style("scan status").cyan(),
-                object_id,
+            output::success(&i18n::scan_created(resp.id));
+            eprintln!();
+            output::command_hint(
+                &format!("scan status --object {object_id}"),
+                &i18n::check_status_command(object_id),
             );
         }
         _ => {}
@@ -97,14 +97,14 @@ pub async fn run_new(
 /// Delete a scan.
 pub async fn run_delete(client: &AnalyzerClient, id: Uuid) -> Result<()> {
     client.delete_scan(id).await?;
-    output::success(&format!("Deleted scan {id}"));
+    output::success(&i18n::deleted_scan(id));
     Ok(())
 }
 
 /// Cancel a running scan.
 pub async fn run_cancel(client: &AnalyzerClient, id: Uuid) -> Result<()> {
     client.cancel_scan(id).await?;
-    output::success(&format!("Cancelled scan {id}"));
+    output::success(&i18n::cancelled_scan(id));
     Ok(())
 }
 
@@ -126,10 +126,10 @@ pub async fn run_report(
     if wait {
         wait_for_completion(client, scan_id, interval, timeout).await?;
     }
-    output::status("Downloading", "PDF report...");
+    output::status("", i18n::downloading_pdf_report());
     let bytes = client.download_report(scan_id).await?;
     tokio::fs::write(&output_path, &bytes).await?;
-    output::success(&format!("Report saved to {}", output_path.display()));
+    output::success(&i18n::report_saved(output_path.display()));
     Ok(())
 }
 
@@ -145,10 +145,10 @@ pub async fn run_sbom(
     if wait {
         wait_for_completion(client, scan_id, interval, timeout).await?;
     }
-    output::status("Downloading", "SBOM...");
+    output::status("", i18n::downloading_sbom());
     let bytes = client.download_sbom(scan_id).await?;
     tokio::fs::write(&output_path, &bytes).await?;
-    output::success(&format!("SBOM saved to {}", output_path.display()));
+    output::success(&i18n::sbom_saved(output_path.display()));
     Ok(())
 }
 
@@ -165,16 +165,12 @@ pub async fn run_compliance_report(
     if wait {
         wait_for_completion(client, scan_id, interval, timeout).await?;
     }
-    output::status(
-        "Downloading",
-        &format!("{} compliance report...", ct.display_name()),
-    );
+    output::status("", &i18n::downloading_compliance_report(ct.display_name()));
     let bytes = client.download_compliance_report(scan_id, ct).await?;
     tokio::fs::write(&output_path, &bytes).await?;
-    output::success(&format!(
-        "{} report saved to {}",
+    output::success(&i18n::compliance_report_saved(
         ct.display_name(),
-        output_path.display()
+        output_path.display(),
     ));
     Ok(())
 }
@@ -193,15 +189,15 @@ pub async fn run_score(client: &AnalyzerClient, scan_id: Uuid, format: Format) -
         Format::Human | Format::Table => {
             eprintln!(
                 "\n  {} {}",
-                style("Overall Score:").bold(),
+                style(format!("{}:", i18n::text(Text::OverallScore))).bold(),
                 format_score(score.score)
             );
             if !score.scores.is_empty() {
                 eprintln!();
                 eprintln!(
                     "  {:<20}  {}",
-                    style("Analysis").underlined(),
-                    style("Score").underlined(),
+                    style(i18n::text(Text::Analysis)).underlined(),
+                    style(i18n::text(Text::Score)).underlined(),
                 );
                 for s in &score.scores {
                     let score_str = format!("{:<5}", s.score);
@@ -237,7 +233,9 @@ pub async fn run_types(client: &AnalyzerClient, format: Format) -> Result<()> {
                 eprintln!("\n  {}", style(&st.image_type).bold().underlined());
                 for a in &st.analyses {
                     let marker = if a.default {
-                        style(" (default)").dim().to_string()
+                        style(format!(" ({})", i18n::text(Text::Default)))
+                            .dim()
+                            .to_string()
                     } else {
                         String::new()
                     };
@@ -285,7 +283,7 @@ fn print_status(
         Format::Human | Format::Table => {
             eprintln!(
                 "\n  {} {} ({})",
-                style("Scan").bold(),
+                style(i18n::text(Text::Scan)).bold(),
                 scan_id,
                 format_status(&status.status.to_string()),
             );
@@ -304,8 +302,8 @@ fn print_status(
                 eprintln!();
                 eprintln!(
                     "  {:<20}  {}",
-                    style("Analysis").underlined(),
-                    style("Status").underlined(),
+                    style(i18n::text(Text::Analysis)).underlined(),
+                    style(i18n::text(Text::Status)).underlined(),
                 );
                 for (key, entry) in &entries {
                     eprintln!(
@@ -337,7 +335,7 @@ async fn wait_for_completion(
             .tick_strings(&["   ", ".  ", ".. ", "...", " ..", "  .", "   "]),
     );
     spinner.enable_steady_tick(Duration::from_millis(120));
-    spinner.set_message("Waiting for scan to complete...");
+    spinner.set_message(i18n::waiting_for_scan());
 
     loop {
         let status = client.get_scan_status(scan_id).await?;
@@ -345,40 +343,32 @@ async fn wait_for_completion(
         match status.status {
             AnalysisStatus::Success => {
                 spinner.finish_and_clear();
-                output::success("Scan completed successfully!");
+                output::success(i18n::scan_completed_successfully());
                 return Ok(status);
             }
             AnalysisStatus::Error => {
                 spinner.finish_and_clear();
-                bail!("Scan failed with error status");
+                bail!(i18n::scan_failed_with_error_status());
             }
             AnalysisStatus::Canceled => {
                 spinner.finish_and_clear();
-                bail!("Scan was cancelled");
+                bail!(i18n::scan_was_cancelled());
             }
             _ => {
                 let mut parts = Vec::new();
                 for (key, val) in &status.analyses {
                     if let Ok(entry) = serde_json::from_value::<AnalysisStatusEntry>(val.clone()) {
-                        let icon = match entry.status {
-                            AnalysisStatus::Success => "done",
-                            AnalysisStatus::InProgress => "running",
-                            AnalysisStatus::Pending => "queued",
-                            _ => "?",
-                        };
+                        let icon = i18n::progress_word(&entry.status.to_string());
                         parts.push(format!("{key}: {icon}"));
                     }
                 }
-                spinner.set_message(format!("Analyzing... [{}]", parts.join(", ")));
+                spinner.set_message(i18n::analyzing(&parts.join(", ")));
             }
         }
 
         if tokio::time::Instant::now() >= deadline {
             spinner.finish_and_clear();
-            bail!(
-                "Timed out waiting for scan to complete ({}s)",
-                timeout.as_secs()
-            );
+            bail!(i18n::timed_out_waiting_for_scan(timeout.as_secs()));
         }
 
         tokio::time::sleep(interval).await;
@@ -398,11 +388,15 @@ pub async fn run_overview(client: &AnalyzerClient, scan_id: Uuid, format: Format
             println!("{}", serde_json::to_string_pretty(&overview)?);
         }
         Format::Human | Format::Table => {
-            eprintln!("\n  {} {}\n", style("Scan Overview").bold(), scan_id);
+            eprintln!("\n  {} {}\n", style(i18n::text(Text::Scan)).bold(), scan_id);
 
             if let Some(cve) = &overview.cve {
                 let c = &cve.counts;
-                eprintln!("  {} ({})", style("CVE Vulnerabilities").bold(), cve.total);
+                eprintln!(
+                    "  {} ({})",
+                    style(i18n::text(Text::CveVulnerabilities)).bold(),
+                    cve.total
+                );
                 eprintln!(
                     "    Critical: {}  High: {}  Medium: {}  Low: {}  Unknown: {}",
                     style(c.critical).red(),
@@ -413,14 +407,26 @@ pub async fn run_overview(client: &AnalyzerClient, scan_id: Uuid, format: Format
                 );
             }
             if let Some(m) = &overview.malware {
-                eprintln!("  {}: {}", style("Malware Detections").bold(), m.count);
+                eprintln!(
+                    "  {}: {}",
+                    style(i18n::text(Text::MalwareDetections)).bold(),
+                    m.count
+                );
             }
             if let Some(p) = &overview.password_hash {
-                eprintln!("  {}: {}", style("Password Issues").bold(), p.count);
+                eprintln!(
+                    "  {}: {}",
+                    style(i18n::text(Text::PasswordIssues)).bold(),
+                    p.count
+                );
             }
             if let Some(h) = &overview.hardening {
                 let c = &h.counts;
-                eprintln!("  {} ({})", style("Hardening Issues").bold(), h.total);
+                eprintln!(
+                    "  {} ({})",
+                    style(i18n::text(Text::HardeningIssues)).bold(),
+                    h.total
+                );
                 eprintln!(
                     "    High: {}  Medium: {}  Low: {}",
                     style(c.high).red(),
@@ -431,7 +437,7 @@ pub async fn run_overview(client: &AnalyzerClient, scan_id: Uuid, format: Format
             if let Some(cap) = &overview.capabilities {
                 eprintln!(
                     "  {} ({} executables)",
-                    style("Capabilities").bold(),
+                    style(i18n::text(Text::Capabilities)).bold(),
                     cap.executable_count
                 );
                 let c = &cap.counts;
@@ -446,7 +452,7 @@ pub async fn run_overview(client: &AnalyzerClient, scan_id: Uuid, format: Format
             if let Some(cr) = &overview.crypto {
                 eprintln!(
                     "  {}: {} certs, {} public keys, {} private keys",
-                    style("Crypto").bold(),
+                    style(i18n::text(Text::Crypto)).bold(),
                     cr.certificates,
                     cr.public_keys,
                     cr.private_keys,
@@ -455,22 +461,30 @@ pub async fn run_overview(client: &AnalyzerClient, scan_id: Uuid, format: Format
             if let Some(sbom) = &overview.software_bom {
                 eprintln!(
                     "  {}: {} components",
-                    style("Software BOM").bold(),
+                    style(i18n::text(Text::SoftwareBom)).bold(),
                     sbom.count
                 );
             }
             if let Some(k) = &overview.kernel {
-                eprintln!("  {}: {} configs", style("Kernel").bold(), k.count);
+                eprintln!(
+                    "  {}: {} configs",
+                    style(i18n::text(Text::Kernel)).bold(),
+                    k.count
+                );
             }
             if let Some(s) = &overview.symbols {
-                eprintln!("  {}: {}", style("Symbols").bold(), s.count);
+                eprintln!("  {}: {}", style(i18n::text(Text::Symbols)).bold(), s.count);
             }
             if let Some(t) = &overview.tasks {
-                eprintln!("  {}: {}", style("Tasks").bold(), t.count);
+                eprintln!("  {}: {}", style(i18n::text(Text::Tasks)).bold(), t.count);
             }
             if let Some(so) = &overview.stack_overflow {
                 if let Some(method) = &so.method {
-                    eprintln!("  {}: {}", style("Stack Overflow").bold(), method);
+                    eprintln!(
+                        "  {}: {}",
+                        style(i18n::text(Text::StackOverflow)).bold(),
+                        method
+                    );
                 }
             }
             eprintln!();
@@ -548,7 +562,7 @@ pub async fn run_results(
             let all_values: Vec<&serde_json::Value> = results.findings.iter().collect();
 
             if all_values.is_empty() {
-                eprintln!("\n  No findings.\n");
+                eprintln!("\n  {}\n", i18n::no_findings());
                 return Ok(());
             }
 
@@ -569,8 +583,8 @@ pub async fn run_results(
 
             let total_pages = results.total_findings.div_ceil(per_page as u64);
             eprintln!(
-                "\n  Page {}/{} ({} total) — use --page N to navigate\n",
-                page, total_pages, results.total_findings,
+                "\n  {}\n",
+                i18n::page_navigation(page, total_pages, results.total_findings)
             );
         }
     }
@@ -581,12 +595,12 @@ fn render_cve_table(values: &[&serde_json::Value]) -> Result<()> {
     eprintln!();
     eprintln!(
         "  {:<8}  {:<15}  {:<5}  {:<14}  {:<20}  {}",
-        style("Severity").underlined(),
+        style(i18n::text(Text::Severity)).underlined(),
         style("CVE ID").underlined(),
-        style("Score").underlined(),
-        style("Vendor").underlined(),
-        style("Product").underlined(),
-        style("Summary").underlined(),
+        style(i18n::text(Text::Score)).underlined(),
+        style(i18n::text(Text::Vendor)).underlined(),
+        style(i18n::text(Text::Product)).underlined(),
+        style(i18n::text(Text::Summary)).underlined(),
     );
     for val in values {
         if let Ok(f) = serde_json::from_value::<CveFinding>((*val).clone()) {
@@ -627,9 +641,9 @@ fn render_password_table(values: &[&serde_json::Value]) -> Result<()> {
     eprintln!();
     eprintln!(
         "  {:<8}  {:<20}  {}",
-        style("Severity").underlined(),
-        style("Username").underlined(),
-        style("Password").underlined(),
+        style(i18n::text(Text::Severity)).underlined(),
+        style(i18n::text(Text::Username)).underlined(),
+        style(i18n::text(Text::Password)).underlined(),
     );
     for val in values {
         if let Ok(f) = serde_json::from_value::<PasswordFinding>((*val).clone()) {
@@ -649,9 +663,9 @@ fn render_malware_table(values: &[&serde_json::Value]) -> Result<()> {
     eprintln!();
     eprintln!(
         "  {:<30}  {:<40}  {}",
-        style("Filename").underlined(),
-        style("Description").underlined(),
-        style("Engine").underlined(),
+        style(i18n::text(Text::Filename)).underlined(),
+        style(i18n::text(Text::Description)).underlined(),
+        style(i18n::text(Text::Engine)).underlined(),
     );
     for val in values {
         if let Ok(f) = serde_json::from_value::<MalwareFinding>((*val).clone()) {
@@ -670,13 +684,13 @@ fn render_hardening_table(values: &[&serde_json::Value]) -> Result<()> {
     eprintln!();
     eprintln!(
         "  {:<8}  {:<30}  {:<6}  {:<3}  {:<7}  {:<7}  {}",
-        style("Severity").underlined(),
-        style("Filename").underlined(),
-        style("Canary").underlined(),
-        style("NX").underlined(),
-        style("PIE").underlined(),
-        style("RELRO").underlined(),
-        style("Fortify").underlined(),
+        style(i18n::text(Text::Severity)).underlined(),
+        style(i18n::text(Text::Filename)).underlined(),
+        style(i18n::text(Text::Canary)).underlined(),
+        style(i18n::text(Text::Nx)).underlined(),
+        style(i18n::text(Text::Pie)).underlined(),
+        style(i18n::text(Text::Relro)).underlined(),
+        style(i18n::text(Text::Fortify)).underlined(),
     );
     for val in values {
         if let Ok(f) = serde_json::from_value::<HardeningFinding>((*val).clone()) {
@@ -700,10 +714,10 @@ fn render_capabilities_table(values: &[&serde_json::Value]) -> Result<()> {
     eprintln!();
     eprintln!(
         "  {:<30}  {:<8}  {:<9}  {}",
-        style("Filename").underlined(),
-        style("Severity").underlined(),
-        style("Behaviors").underlined(),
-        style("Syscalls").underlined(),
+        style(i18n::text(Text::Filename)).underlined(),
+        style(i18n::text(Text::Severity)).underlined(),
+        style(i18n::text(Text::Behaviors)).underlined(),
+        style(i18n::text(Text::Syscalls)).underlined(),
     );
     for val in values {
         if let Ok(f) = serde_json::from_value::<CapabilityFinding>((*val).clone()) {
@@ -758,11 +772,11 @@ fn render_crypto_table(values: &[&serde_json::Value]) -> Result<()> {
     eprintln!();
     eprintln!(
         "  {:<14}  {:<20}  {:<20}  {:<8}  {}",
-        style("Type").underlined(),
-        style("Filename").underlined(),
+        style(i18n::text(Text::Type)).underlined(),
+        style(i18n::text(Text::Filename)).underlined(),
         style("Path").underlined(),
-        style("Key Size").underlined(),
-        style("Aux").underlined(),
+        style(i18n::text(Text::KeySize)).underlined(),
+        style(i18n::text(Text::Aux)).underlined(),
     );
     for val in values {
         if let Ok(f) = serde_json::from_value::<CryptoFinding>((*val).clone()) {
@@ -788,10 +802,10 @@ fn render_sbom_table(values: &[&serde_json::Value]) -> Result<()> {
     eprintln!();
     eprintln!(
         "  {:<30}  {:<14}  {:<12}  {}",
-        style("Name").underlined(),
-        style("Version").underlined(),
-        style("Type").underlined(),
-        style("Licenses").underlined(),
+        style(i18n::text(Text::Name)).underlined(),
+        style(i18n::text(Text::Version)).underlined(),
+        style(i18n::text(Text::Type)).underlined(),
+        style(i18n::text(Text::Licenses)).underlined(),
     );
     for val in values {
         if let Ok(f) = serde_json::from_value::<SbomComponent>((*val).clone()) {
@@ -822,16 +836,20 @@ fn render_kernel_table(values: &[&serde_json::Value]) -> Result<()> {
     for val in values {
         if let Ok(f) = serde_json::from_value::<KernelFinding>((*val).clone()) {
             if let Some(file) = &f.file {
-                eprintln!("\n  {} {}", style("Kernel Config:").bold(), file);
+                eprintln!(
+                    "\n  {} {}",
+                    style(format!("{}:", i18n::text(Text::KernelConfig))).bold(),
+                    file
+                );
             }
-            if let Some(score) = f.score {
-                eprintln!("  Score: {}", score);
+            if let Some(score_value) = f.score {
+                eprintln!("  {}: {}", i18n::text(Text::Score), score_value);
             }
             eprintln!();
             eprintln!(
                 "  {:<40}  {}",
-                style("Feature").underlined(),
-                style("Status").underlined(),
+                style(i18n::text(Text::Feature)).underlined(),
+                style(i18n::text(Text::Status)).underlined(),
             );
             for feat in &f.features {
                 eprintln!("  {:<40}  {}", feat.name, format_bool(feat.enabled, 8),);
@@ -845,9 +863,9 @@ fn render_symbols_table(values: &[&serde_json::Value]) -> Result<()> {
     eprintln!();
     eprintln!(
         "  {:<40}  {:<12}  {}",
-        style("Name").underlined(),
-        style("Type").underlined(),
-        style("Bind").underlined(),
+        style(i18n::text(Text::Name)).underlined(),
+        style(i18n::text(Text::Type)).underlined(),
+        style(i18n::text(Text::Bind)).underlined(),
     );
     for val in values {
         if let Ok(f) = serde_json::from_value::<IdfSymbolFinding>((*val).clone()) {
@@ -866,8 +884,8 @@ fn render_tasks_table(values: &[&serde_json::Value]) -> Result<()> {
     eprintln!();
     eprintln!(
         "  {:<30}  {}",
-        style("Name").underlined(),
-        style("Function").underlined(),
+        style(i18n::text(Text::Name)).underlined(),
+        style(i18n::text(Text::Function)).underlined(),
     );
     for val in values {
         if let Ok(f) = serde_json::from_value::<IdfTaskFinding>((*val).clone()) {

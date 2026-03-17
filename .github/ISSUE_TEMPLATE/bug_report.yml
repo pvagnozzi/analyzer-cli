@@ -1,0 +1,42 @@
+name: Bug report
+description: Report a reproducible problem in the CLI.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug report. Please provide enough detail for us to reproduce the issue.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the current behavior and the expected behavior.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Include commands, flags, and sanitized sample inputs.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Analyzer CLI version
+      placeholder: e.g. v0.2.0
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, shell, Rust version if building from source, and any other relevant details.
+    validations:
+      required: true

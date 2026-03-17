@@ -1,0 +1,134 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+DRY_RUN=0
+RUNTIME=""
+BUILD_NUMBER="${ANALYZER_RELEASE_BUILD:-}"
+RELEASE_DATE="${ANALYZER_RELEASE_DATE:-}"
+
+typeset -A TARGETS
+TARGETS=(
+  x86 i686-apple-darwin
+  amd64 x86_64-apple-darwin
+  arm aarch64-apple-darwin
+)
+
+show_help() {
+  cat <<'EOF'
+🚀 release for macOS
+
+Synopsis:
+  Produce macOS release zip archives for x86, amd64, and arm on the local host.
+
+Usage:
+  zsh ./scripts/macos/release [--build-number N] [--release-date YYYYMMDD] [--dry-run] [--help]
+
+Artifacts:
+  dist/release/macos/analyzer-cli.<Major>.<Minor>.<Release>.<Build>_<YYYYMMDD>-macos-<arch>.zip
+EOF
+}
+
+log() {
+  local level="$1"
+  local message="$2"
+  case "$level" in
+    INFO) printf '\033[36mℹ️ %s\033[0m\n' "$message" ;;
+    OK) printf '\033[32m✅ %s\033[0m\n' "$message" ;;
+    WARN) printf '\033[33m⚠️ %s\033[0m\n' "$message" ;;
+    ERR) printf '\033[31m❌ %s\033[0m\n' "$message" ;;
+  esac
+}
+
+run_cmd() {
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    log INFO "[dry-run] $*"
+  else
+    eval "$*"
+  fi
+}
+
+parse_version() {
+  local version
+  version="$(sed -n 's/^version = "\(.*\)"$/\1/p' "$REPO_ROOT/Cargo.toml" | head -n1)"
+  if [[ -z "$version" ]]; then
+    log ERR "Could not determine version from Cargo.toml."
+    exit 1
+  fi
+  printf '%s\n' "$version"
+}
+
+resolve_build_number() {
+  if [[ -n "$BUILD_NUMBER" ]]; then
+    printf '%s\n' "$BUILD_NUMBER"
+    return
+  fi
+  if [[ -n "${GITHUB_RUN_NUMBER:-}" ]]; then
+    printf '%s\n' "$GITHUB_RUN_NUMBER"
+    return
+  fi
+  if command -v git >/dev/null 2>&1; then
+    git -C "$REPO_ROOT" rev-list --count HEAD 2>/dev/null && return
+  fi
+  printf '0\n'
+}
+
+resolve_release_date() {
+  if [[ -n "$RELEASE_DATE" ]]; then
+    printf '%s\n' "$RELEASE_DATE"
+    return
+  fi
+  date '+%Y%m%d'
+}
+
+ensure_tools() {
+  command -v cargo >/dev/null 2>&1 || { log ERR "cargo is required."; exit 1; }
+  command -v rustup >/dev/null 2>&1 || { log ERR "rustup is required."; exit 1; }
+  command -v zip >/dev/null 2>&1 || { log ERR "zip is required."; exit 1; }
+}
+
+build_target() {
+  local arch="$1"
+  local target="$2"
+  local archive_name="$3"
+  local stage_dir="$4"
+
+  run_cmd "cargo build --locked --release --target $target"
+  run_cmd "rm -rf \"$stage_dir\" && mkdir -p \"$stage_dir\""
+  run_cmd "cp \"$REPO_ROOT/target/$target/release/analyzer\" \"$stage_dir/analyzer\""
+  run_cmd "(cd \"$stage_dir\" && zip -q -r \"$ARTIFACT_DIR/$archive_name\" analyzer)"
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --help|-h) show_help; exit 0 ;;
+    --dry-run) DRY_RUN=1 ;;
+    --runtime) RUNTIME="$2"; log WARN "--runtime is ignored on macOS release packaging."; shift ;;
+    --build-number) BUILD_NUMBER="$2"; shift ;;
+    --release-date) RELEASE_DATE="$2"; shift ;;
+    *) log ERR "Unknown argument: $1"; show_help; exit 1 ;;
+  esac
+  shift
+done
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+ARTIFACT_DIR="$REPO_ROOT/dist/release/macos"
+STAGE_ROOT="$REPO_ROOT/dist/release/.stage-macos"
+VERSION="$(parse_version)"
+IFS='.' read -r MAJOR MINOR RELEASE <<< "$VERSION"
+BUILD="$(resolve_build_number)"
+STAMP="$(resolve_release_date)"
+
+ensure_tools
+
+run_cmd "rustup target add i686-apple-darwin x86_64-apple-darwin aarch64-apple-darwin"
+run_cmd "mkdir -p \"$ARTIFACT_DIR\""
+
+for arch target in ${(kv)TARGETS}; do
+  archive_name="analyzer-cli.${MAJOR}.${MINOR}.${RELEASE}.${BUILD}_${STAMP}-macos-${arch}.zip"
+  log INFO "Packaging $target -> $archive_name"
+  build_target "$arch" "$target" "$archive_name" "$STAGE_ROOT/$arch"
+done
+
+log OK "Release archives written to $ARTIFACT_DIR"
+

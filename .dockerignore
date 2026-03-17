@@ -1,0 +1,10 @@
+target/
+.git/
+.github/
+.copilot/
+dist/
+coverage/
+**/*.log
+**/*.tmp
+**/*.temp
+**/.DS_Store

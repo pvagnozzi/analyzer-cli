@@ -5,6 +5,7 @@ use console::style;
 
 use crate::client::AnalyzerClient;
 use crate::config::ConfigFile;
+use crate::i18n::{self, Text};
 use crate::output;
 
 /// Run the `login` command — prompt for API key, validate, save.
@@ -12,27 +13,10 @@ pub async fn run_login(url: Option<&str>, profile_name: Option<&str>) -> Result<
     let profile_name = profile_name.unwrap_or("default");
 
     eprintln!();
-    let banner = [
-        r"                _        ",
-        r"   _____  _____(_)_ __   ",
-        r"  / _ \ \/ / _ \ | '_ \  ",
-        r" |  __/>  <  __/ | | | | ",
-        r"  \___/_/\_\___|_|_| |_| ",
-    ];
-    for line in &banner {
-        eprintln!("  {}", style(line).cyan().bold());
-    }
-    eprintln!(
-        "  {} {}",
-        style(" analyzer").dim(),
-        style(format!("v{}", env!("CARGO_PKG_VERSION"))).dim()
+    output::hero(
+        i18n::analyzer_cli(),
+        &i18n::configuring_profile(profile_name),
     );
-    eprintln!();
-    eprintln!(
-        "  {}",
-        style(format!("Configuring profile '{profile_name}'")).dim()
-    );
-    eprintln!();
 
     let api_key = prompt_api_key()?;
 
@@ -46,15 +30,13 @@ pub async fn run_login(url: Option<&str>, profile_name: Option<&str>) -> Result<
 
     // Validate
     eprintln!();
-    output::status("", "Validating API key...");
+    output::status("", i18n::validating_api_key());
     let parsed_url: url::Url = url.parse()?;
     let client = AnalyzerClient::new(parsed_url, &api_key)?;
 
     match client.health().await {
-        Ok(_) => output::success("Key accepted. You're in."),
-        Err(e) => output::warning(&format!(
-            "Could not validate key ({e}). Saving anyway — the server may be unreachable."
-        )),
+        Ok(_) => output::success(i18n::key_accepted()),
+        Err(e) => output::warning(&i18n::could_not_validate(e)),
     }
 
     // Save
@@ -64,27 +46,12 @@ pub async fn run_login(url: Option<&str>, profile_name: Option<&str>) -> Result<
     config.save()?;
 
     let path = ConfigFile::path()?;
-    output::success(&format!("Config saved to {}", path.display()));
+    output::success(&i18n::config_saved(path.display()));
     eprintln!();
-    eprintln!(
-        "  {} Ready to hunt some vulns. Try:",
-        style(">").green().bold()
-    );
-    eprintln!(
-        "    {} {}       # list your objects",
-        style("analyzer").bold(),
-        style("object list").cyan()
-    );
-    eprintln!(
-        "    {} {}        # available scan types",
-        style("analyzer").bold(),
-        style("scan types").cyan()
-    );
-    eprintln!(
-        "    {} {}  # start a scan",
-        style("analyzer").bold(),
-        style("scan new -h").cyan()
-    );
+    eprintln!("  {} {}", style("🎯").green().bold(), i18n::ready_to_hunt());
+    output::command_hint("object list", i18n::list_your_objects());
+    output::command_hint("scan types", i18n::available_scan_types());
+    output::command_hint("scan new -h", i18n::start_a_scan());
     eprintln!();
 
     Ok(())
@@ -114,29 +81,28 @@ pub fn run_whoami(api_key: Option<&str>, url: Option<&str>, profile: Option<&str
     let masked_key = match &resolved_key {
         Some(key) if key.len() > 8 => format!("{}...{}", &key[..4], &key[key.len() - 4..]),
         Some(key) => format!("{}...", &key[..key.len().min(4)]),
-        None => "(not set)".to_string(),
+        None => i18n::not_set_value().to_string(),
     };
 
-    eprintln!("{}", style("Analyzer CLI").bold().underlined());
-    eprintln!();
-    eprintln!("  {:>12}  {}", style("Profile:").bold(), profile_name);
-    eprintln!("  {:>12}  {}", style("URL:").bold(), resolved_url);
-    eprintln!("  {:>12}  {}", style("API Key:").bold(), masked_key);
+    output::hero(i18n::analyzer_cli(), i18n::tagline());
+    output::key_value(i18n::text(Text::Profile), profile_name);
+    output::key_value(i18n::text(Text::Url), resolved_url);
+    output::key_value(i18n::text(Text::ApiKey), masked_key);
 
     if let Ok(path) = ConfigFile::path() {
-        eprintln!("  {:>12}  {}", style("Config:").bold(), path.display());
+        output::key_value(i18n::text(Text::Config), path.display());
     }
 
     Ok(())
 }
 
 fn prompt_api_key() -> Result<String> {
-    eprint!("  Enter your API key: ");
+    eprint!("  🔑 {} ", i18n::enter_api_key());
     let mut key = String::new();
     std::io::stdin().read_line(&mut key)?;
     let key = key.trim().to_string();
     if key.is_empty() {
-        anyhow::bail!("API key cannot be empty");
+        anyhow::bail!(i18n::api_key_cannot_be_empty());
     }
     Ok(key)
 }

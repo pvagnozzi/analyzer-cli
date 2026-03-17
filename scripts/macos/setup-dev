@@ -1,0 +1,220 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+DRY_RUN=0
+
+show_help() {
+  cat <<'EOF'
+🚀 setup-dev for macOS
+
+Synopsis:
+  Bootstrap a professional macOS developer workstation for this repository.
+
+Usage:
+  zsh ./scripts/macos/setup-dev [--dry-run] [--help]
+
+What it does:
+  • Installs Homebrew
+  • Installs PowerShell, Visual Studio Code, Git, Git LFS, GitHub CLI, GitFlow, Rust, and Oh My Posh
+  • Configures Oh My Posh in the current user's PowerShell profile
+  • Checks Docker Desktop or Podman Desktop and installs Podman when neither is present
+  • Reports unsupported package managers such as Scoop and Chocolatey explicitly
+
+Behavior:
+  • Idempotent: safe to run multiple times
+  • English output
+  • Colorful logs with emoji
+EOF
+}
+
+color() {
+  local name="$1"
+  case "$name" in
+    cyan) printf '\033[36m' ;;
+    green) printf '\033[32m' ;;
+    yellow) printf '\033[33m' ;;
+    red) printf '\033[31m' ;;
+    magenta) printf '\033[35m' ;;
+    reset) printf '\033[0m' ;;
+  esac
+}
+
+log() {
+  local level="$1"
+  local message="$2"
+  local icon color_name
+  case "$level" in
+    INFO) icon="ℹ️"; color_name="cyan" ;;
+    OK) icon="✅"; color_name="green" ;;
+    WARN) icon="⚠️"; color_name="yellow" ;;
+    ERR) icon="❌"; color_name="red" ;;
+    STEP) icon="🚀"; color_name="magenta" ;;
+  esac
+  printf "%b%s %s%b\n" "$(color "$color_name")" "$icon" "$message" "$(color reset)"
+}
+
+run_cmd() {
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    log INFO "[dry-run] $*"
+  else
+    eval "$*"
+  fi
+}
+
+command_exists() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+ensure_brew() {
+  if command_exists brew; then
+    log OK "Homebrew is already installed."
+    return
+  fi
+
+  log INFO "Installing Homebrew..."
+  run_cmd '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+  if [[ "$DRY_RUN" -eq 0 ]]; then
+    eval "$(/opt/homebrew/bin/brew shellenv 2>/dev/null || /usr/local/bin/brew shellenv)"
+  fi
+}
+
+ensure_brew_package() {
+  local formula="$1"
+  local label="$2"
+
+  if brew list "$formula" >/dev/null 2>&1; then
+    log OK "$label is already installed."
+    return
+  fi
+
+  log INFO "Installing $label..."
+  run_cmd "brew install $formula"
+}
+
+ensure_brew_cask() {
+  local cask="$1"
+  local label="$2"
+
+  if brew list --cask "$cask" >/dev/null 2>&1; then
+    log OK "$label is already installed."
+    return
+  fi
+
+  log INFO "Installing $label..."
+  run_cmd "brew install --cask $cask"
+}
+
+ensure_rust() {
+  if command_exists rustup; then
+    log OK "Rustup is already installed."
+    return
+  fi
+
+  log INFO "Installing Rust with rustup..."
+  run_cmd 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y'
+}
+
+ensure_pwsh_profile() {
+  if ! command_exists pwsh; then
+    log WARN "PowerShell is not installed yet. Skipping profile setup."
+    return
+  fi
+
+  local profile_path profile_dir existing_line init_line
+  profile_path="$(pwsh -NoProfile -Command '$PROFILE.CurrentUserAllHosts')"
+  profile_dir="$(dirname "$profile_path")"
+
+  if [[ ! -d "$profile_dir" ]]; then
+    run_cmd "mkdir -p \"$profile_dir\""
+  fi
+
+  if [[ ! -f "$profile_path" ]]; then
+    run_cmd "touch \"$profile_path\""
+  fi
+
+  existing_line="$(grep -E 'oh-my-posh init pwsh --config' "$profile_path" | head -n 1 || true)"
+  if [[ -z "$existing_line" ]]; then
+    init_line='oh-my-posh init pwsh --config "$env:POSH_THEMES_PATH/jandedobbeleer.omp.json" | Invoke-Expression'
+  else
+    init_line="$existing_line"
+  fi
+
+  if grep -Fqx "$init_line" "$profile_path"; then
+    log OK "Oh My Posh profile initialization already exists."
+  else
+    log INFO "Adding Oh My Posh initialization to the current user's PowerShell profile..."
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+      log INFO "[dry-run] printf '\n%s\n' '$init_line' >> \"$profile_path\""
+    else
+      printf '\n%s\n' "$init_line" >>"$profile_path"
+    fi
+  fi
+
+  if [[ "$DRY_RUN" -eq 0 ]]; then
+    pwsh -NoProfile -Command ". \"$profile_path\""
+    log OK "PowerShell profile reloaded."
+  fi
+}
+
+ensure_container_stack() {
+  local docker_desktop=0
+  local podman_desktop=0
+  local docker_cli=0
+  local podman_cli=0
+
+  [[ -d "/Applications/Docker.app" ]] && docker_desktop=1
+  [[ -d "/Applications/Podman Desktop.app" ]] && podman_desktop=1
+  command_exists docker && docker_cli=1
+  command_exists podman && podman_cli=1
+
+  if { [[ "$docker_desktop" -eq 1 ]] && [[ "$docker_cli" -eq 1 ]]; } || { [[ "$podman_desktop" -eq 1 ]] && [[ "$podman_cli" -eq 1 ]]; }; then
+    log OK "A supported container desktop stack is already installed."
+    return
+  fi
+
+  log INFO "Installing Podman CLI and Podman Desktop because no supported container desktop was detected."
+  ensure_brew_package podman "Podman CLI"
+  ensure_brew_cask podman-desktop "Podman Desktop"
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --help|-h)
+      show_help
+      exit 0
+      ;;
+    --dry-run)
+      DRY_RUN=1
+      ;;
+    *)
+      log ERR "Unknown argument: $1"
+      show_help
+      exit 1
+      ;;
+  esac
+  shift
+done
+
+log STEP "Step 1 - Installing package managers"
+ensure_brew
+eval "$(/opt/homebrew/bin/brew shellenv 2>/dev/null || /usr/local/bin/brew shellenv)"
+log WARN "Scoop is Windows-only and has been skipped on macOS."
+log WARN "Chocolatey is Windows-only and has been skipped on macOS."
+
+log STEP "Step 2 - Installing developer tools"
+ensure_brew_package powershell "PowerShell"
+ensure_brew_cask visual-studio-code "Visual Studio Code"
+ensure_brew_package git "Git"
+ensure_brew_package git-lfs "Git LFS"
+ensure_brew_package gh "GitHub CLI"
+ensure_brew_package git-flow-avh "GitFlow"
+ensure_brew_package oh-my-posh "Oh My Posh"
+ensure_rust
+
+log STEP "Step 3 - Checking container tooling"
+ensure_container_stack
+
+log STEP "Step 4 - Configuring the PowerShell profile"
+ensure_pwsh_profile
+
+log OK "macOS development environment setup completed."

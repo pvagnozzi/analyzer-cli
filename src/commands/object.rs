@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 use crate::client::AnalyzerClient;
 use crate::client::models::CreateObject;
+use crate::i18n::{self, Text};
 use crate::output::{self, Format};
 
 /// List all objects.
@@ -22,20 +23,17 @@ pub async fn run_list(client: &AnalyzerClient, format: Format) -> Result<()> {
         }
         Format::Human | Format::Table => {
             if objects.is_empty() {
-                output::status(
-                    "Objects",
-                    "None found. Create one with: analyzer object new <name>",
-                );
+                output::status(i18n::text(Text::Objects), i18n::objects_empty());
                 return Ok(());
             }
 
             eprintln!();
             eprintln!(
                 "  {:<36}  {:<30}  {:<5}  {}",
-                style("ID").underlined(),
-                style("Name").underlined(),
-                style("Score").underlined(),
-                style("Description").underlined(),
+                style(i18n::text(Text::Id)).underlined(),
+                style(i18n::text(Text::Name)).underlined(),
+                style(i18n::text(Text::Score)).underlined(),
+                style(i18n::text(Text::Description)).underlined(),
             );
             for obj in &objects {
                 let score = obj
@@ -115,7 +113,7 @@ pub async fn run_new(
             );
         }
         Format::Human | Format::Table => {
-            output::success(&format!("Created object '{}' ({})", object.name, object.id));
+            output::success(&i18n::created_object(&object.name, object.id));
         }
     }
     Ok(())
@@ -124,6 +122,6 @@ pub async fn run_new(
 /// Delete an object.
 pub async fn run_delete(client: &AnalyzerClient, id: Uuid) -> Result<()> {
     client.delete_object(id).await?;
-    output::success(&format!("Deleted object {id}"));
+    output::success(&i18n::deleted_object(id));
     Ok(())
 }

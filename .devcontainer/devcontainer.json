@@ -1,0 +1,25 @@
+{
+  "name": "analyzer-cli",
+  "build": {
+    "context": "..",
+    "dockerfile": "../containers/devcontainer/Dockerfile"
+  },
+  "workspaceFolder": "/workspace",
+  "remoteUser": "vscode",
+  "postCreateCommand": "bash /usr/local/share/analyzer-devcontainer/post-create.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "rust-lang.rust-analyzer",
+        "tamasfe.even-better-toml",
+        "ms-azuretools.vscode-docker",
+        "github.copilot",
+        "github.copilot-chat"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "rust-analyzer.check.command": "clippy"
+      }
+    }
+  }
+}

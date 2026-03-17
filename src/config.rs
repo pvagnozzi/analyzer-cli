@@ -50,6 +50,10 @@ fn default_profile_name() -> String {
 impl ConfigFile {
     /// Path to the config file.
     pub fn path() -> Result<PathBuf> {
+        if let Ok(dir) = std::env::var("ANALYZER_CONFIG_DIR") {
+            return Ok(PathBuf::from(dir).join(CONFIG_FILE_NAME));
+        }
+
         let dir = dirs::config_dir()
             .context("could not determine config directory")?
             .join(CONFIG_DIR_NAME);

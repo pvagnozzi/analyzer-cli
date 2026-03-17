@@ -3,22 +3,18 @@
 //! Scan firmware and container images for vulnerabilities, generate SBOMs,
 //! check CRA compliance, and more.
 
-mod client;
-mod commands;
-mod config;
-mod output;
-
 use std::path::PathBuf;
 use std::process::ExitCode;
 use std::time::Duration;
 
+use analyzer_cli::client::AnalyzerClient;
+use analyzer_cli::client::models::{AnalysisType, ComplianceType};
+use analyzer_cli::i18n::{self, Language};
+use analyzer_cli::output;
+use analyzer_cli::output::Format;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use uuid::Uuid;
-
-use crate::client::AnalyzerClient;
-use crate::client::models::{AnalysisType, ComplianceType};
-use crate::output::Format;
 
 /// Exein Analyzer CLI — firmware & container security scanning.
 ///
@@ -49,6 +45,17 @@ struct Cli {
     /// Output format.
     #[arg(long, global = true, value_enum, default_value_t = Format::Human)]
     format: Format,
+
+    /// Human language for themed CLI output.
+    #[arg(
+        long = "lang",
+        global = true,
+        alias = "language",
+        env = "ANALYZER_LANG",
+        value_enum,
+        default_value_t = Language::English
+    )]
+    language: Language,
 
     #[command(subcommand)]
     command: Command,
@@ -360,27 +367,43 @@ async fn run(cli: Cli) -> Result<()> {
     let url = cli.url;
     let profile = cli.profile;
     let format = cli.format;
+    let language = cli.language;
+    let show_welcome =
+        matches!(format, Format::Human) && !matches!(&cli.command, Command::Completions { .. });
+
+    i18n::set_language(language);
+
+    if show_welcome {
+        output::print_welcome();
+    }
 
     match cli.command {
         // -- Auth (no API key required) -----------------------------------
         Command::Login {
             url: login_url,
             profile: login_profile,
-        } => commands::auth::run_login(login_url.as_deref(), login_profile.as_deref()).await,
-
-        Command::Whoami => {
-            commands::auth::run_whoami(api_key.as_deref(), url.as_deref(), profile.as_deref())
+        } => {
+            analyzer_cli::commands::auth::run_login(login_url.as_deref(), login_profile.as_deref())
+                .await
         }
+
+        Command::Whoami => analyzer_cli::commands::auth::run_whoami(
+            api_key.as_deref(),
+            url.as_deref(),
+            profile.as_deref(),
+        ),
 
         // -- Config (no API key required) ---------------------------------
         Command::Config(cmd) => match cmd {
-            ConfigCommand::Show => commands::config::run_show(),
+            ConfigCommand::Show => analyzer_cli::commands::config::run_show(),
             ConfigCommand::Set {
                 key,
                 value,
                 profile: p,
-            } => commands::config::run_set(&key, &value, p.as_deref()),
-            ConfigCommand::Get { key, profile: p } => commands::config::run_get(&key, p.as_deref()),
+            } => analyzer_cli::commands::config::run_set(&key, &value, p.as_deref()),
+            ConfigCommand::Get { key, profile: p } => {
+                analyzer_cli::commands::config::run_get(&key, p.as_deref())
+            }
         },
 
         // -- Completions (no API key required) ----------------------------
@@ -394,13 +417,26 @@ async fn run(cli: Cli) -> Result<()> {
         Command::Object(cmd) => {
             let client = make_client(api_key.as_deref(), url.as_deref(), profile.as_deref())?;
             match cmd {
-                ObjectCommand::List => commands::object::run_list(&client, format).await,
+                ObjectCommand::List => {
+                    analyzer_cli::commands::object::run_list(&client, format).await
+                }
                 ObjectCommand::New {
                     name,
                     description,
                     tags,
-                } => commands::object::run_new(&client, name, description, tags, format).await,
-                ObjectCommand::Delete { id } => commands::object::run_delete(&client, id).await,
+                } => {
+                    analyzer_cli::commands::object::run_new(
+                        &client,
+                        name,
+                        description,
+                        tags,
+                        format,
+                    )
+                    .await
+                }
+                ObjectCommand::Delete { id } => {
+                    analyzer_cli::commands::object::run_delete(&client, id).await
+                }
             }
         }
 
@@ -416,21 +452,29 @@ async fn run(cli: Cli) -> Result<()> {
                     interval,
                     timeout,
                 } => {
-                    commands::scan::run_new(
+                    analyzer_cli::commands::scan::run_new(
                         &client, object_id, file, scan_type, analyses, format, wait, interval,
                         timeout,
                     )
                     .await
                 }
-                ScanCommand::Delete { id } => commands::scan::run_delete(&client, id).await,
-                ScanCommand::Cancel { id } => commands::scan::run_cancel(&client, id).await,
+                ScanCommand::Delete { id } => {
+                    analyzer_cli::commands::scan::run_delete(&client, id).await
+                }
+                ScanCommand::Cancel { id } => {
+                    analyzer_cli::commands::scan::run_cancel(&client, id).await
+                }
                 ScanCommand::Status { scan_id, object_id } => {
-                    let sid = commands::scan::resolve_scan_id(&client, scan_id, object_id).await?;
-                    commands::scan::run_status(&client, sid, format).await
+                    let sid =
+                        analyzer_cli::commands::scan::resolve_scan_id(&client, scan_id, object_id)
+                            .await?;
+                    analyzer_cli::commands::scan::run_status(&client, sid, format).await
                 }
                 ScanCommand::Score { scan_id, object_id } => {
-                    let sid = commands::scan::resolve_scan_id(&client, scan_id, object_id).await?;
-                    commands::scan::run_score(&client, sid, format).await
+                    let sid =
+                        analyzer_cli::commands::scan::resolve_scan_id(&client, scan_id, object_id)
+                            .await?;
+                    analyzer_cli::commands::scan::run_score(&client, sid, format).await
                 }
                 ScanCommand::Report {
                     scan_id,
@@ -440,8 +484,13 @@ async fn run(cli: Cli) -> Result<()> {
                     interval,
                     timeout,
                 } => {
-                    let sid = commands::scan::resolve_scan_id(&client, scan_id, object_id).await?;
-                    commands::scan::run_report(&client, sid, output, wait, interval, timeout).await
+                    let sid =
+                        analyzer_cli::commands::scan::resolve_scan_id(&client, scan_id, object_id)
+                            .await?;
+                    analyzer_cli::commands::scan::run_report(
+                        &client, sid, output, wait, interval, timeout,
+                    )
+                    .await
                 }
                 ScanCommand::Sbom {
                     scan_id,
@@ -451,8 +500,13 @@ async fn run(cli: Cli) -> Result<()> {
                     interval,
                     timeout,
                 } => {
-                    let sid = commands::scan::resolve_scan_id(&client, scan_id, object_id).await?;
-                    commands::scan::run_sbom(&client, sid, output, wait, interval, timeout).await
+                    let sid =
+                        analyzer_cli::commands::scan::resolve_scan_id(&client, scan_id, object_id)
+                            .await?;
+                    analyzer_cli::commands::scan::run_sbom(
+                        &client, sid, output, wait, interval, timeout,
+                    )
+                    .await
                 }
                 ScanCommand::ComplianceReport {
                     scan_id,
@@ -463,8 +517,10 @@ async fn run(cli: Cli) -> Result<()> {
                     interval,
                     timeout,
                 } => {
-                    let sid = commands::scan::resolve_scan_id(&client, scan_id, object_id).await?;
-                    commands::scan::run_compliance_report(
+                    let sid =
+                        analyzer_cli::commands::scan::resolve_scan_id(&client, scan_id, object_id)
+                            .await?;
+                    analyzer_cli::commands::scan::run_compliance_report(
                         &client,
                         sid,
                         compliance_type,
@@ -475,10 +531,14 @@ async fn run(cli: Cli) -> Result<()> {
                     )
                     .await
                 }
-                ScanCommand::Types => commands::scan::run_types(&client, format).await,
+                ScanCommand::Types => {
+                    analyzer_cli::commands::scan::run_types(&client, format).await
+                }
                 ScanCommand::Overview { scan_id, object_id } => {
-                    let sid = commands::scan::resolve_scan_id(&client, scan_id, object_id).await?;
-                    commands::scan::run_overview(&client, sid, format).await
+                    let sid =
+                        analyzer_cli::commands::scan::resolve_scan_id(&client, scan_id, object_id)
+                            .await?;
+                    analyzer_cli::commands::scan::run_overview(&client, sid, format).await
                 }
                 ScanCommand::Results {
                     scan_id,
@@ -488,8 +548,10 @@ async fn run(cli: Cli) -> Result<()> {
                     per_page,
                     search,
                 } => {
-                    let sid = commands::scan::resolve_scan_id(&client, scan_id, object_id).await?;
-                    commands::scan::run_results(
+                    let sid =
+                        analyzer_cli::commands::scan::resolve_scan_id(&client, scan_id, object_id)
+                            .await?;
+                    analyzer_cli::commands::scan::run_results(
                         &client, sid, analysis, page, per_page, search, format,
                     )
                     .await
@@ -499,8 +561,16 @@ async fn run(cli: Cli) -> Result<()> {
                     object_id,
                     compliance_type,
                 } => {
-                    let sid = commands::scan::resolve_scan_id(&client, scan_id, object_id).await?;
-                    commands::scan::run_compliance(&client, sid, compliance_type, format).await
+                    let sid =
+                        analyzer_cli::commands::scan::resolve_scan_id(&client, scan_id, object_id)
+                            .await?;
+                    analyzer_cli::commands::scan::run_compliance(
+                        &client,
+                        sid,
+                        compliance_type,
+                        format,
+                    )
+                    .await
                 }
             }
         }
@@ -512,6 +582,6 @@ fn make_client(
     url: Option<&str>,
     profile: Option<&str>,
 ) -> Result<AnalyzerClient> {
-    let cfg = config::resolve(api_key, url, profile)?;
+    let cfg = analyzer_cli::config::resolve(api_key, url, profile)?;
     AnalyzerClient::new(cfg.url, &cfg.api_key)
 }

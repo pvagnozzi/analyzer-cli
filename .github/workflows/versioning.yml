@@ -1,0 +1,46 @@
+name: Versioning
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - feature/**
+      - release/**
+      - hotfix/**
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gitversion:
+    name: Calculate semantic version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup GitVersion
+        uses: gittools/actions/gitversion/setup@v3
+        with:
+          versionSpec: "5.x"
+
+      - name: Execute GitVersion
+        id: gitversion
+        uses: gittools/actions/gitversion/execute@v3
+        with:
+          useConfigFile: true
+
+      - name: Publish summary
+        run: |
+          echo "## GitVersion" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- SemVer: ${{ steps.gitversion.outputs.semVer }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- FullSemVer: ${{ steps.gitversion.outputs.fullSemVer }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- InformationalVersion: ${{ steps.gitversion.outputs.informationalVersion }}" >> "$GITHUB_STEP_SUMMARY"
