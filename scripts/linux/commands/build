@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+DRY_RUN=0
+RUNTIME=""
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../common/runtime.sh
+. "$SCRIPT_DIR/../common/runtime.sh"
+
+show_help() {
+  cat <<'EOF'
+🚀 build for Linux
+
+Synopsis:
+  Build the project inside the repository build container.
+
+Usage:
+  bash ./scripts/linux/commands/build [--runtime docker|podman] [--dry-run] [--help]
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --help|-h) show_help; exit 0 ;;
+    --dry-run) DRY_RUN=1 ;;
+    --runtime) RUNTIME="$2"; shift ;;
+    *) log ERR "Unknown argument: $1"; show_help; exit 1 ;;
+  esac
+  shift
+done
+
+RUNTIME="$(resolve_runtime)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+HOST_REPO_ROOT="$(normalize_host_path "$REPO_ROOT")"
+DOCKERFILE="$(host_path_join "$HOST_REPO_ROOT" "containers/build/Dockerfile")"
+TAG="analyzer-cli-build:local"
+
+log INFO "Using container runtime: $RUNTIME"
+ensure_image "$TAG" "$DOCKERFILE" "$HOST_REPO_ROOT"
+run_cmd "$RUNTIME run --rm -v \"$HOST_REPO_ROOT:/workspace\" -w /workspace $TAG"
+log OK "Containerized build completed."

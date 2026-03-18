@@ -1,84 +1,40 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo_root="$(pwd)"
-artifact_dir="$repo_root/dist/release/linux"
-stage_root="$repo_root/dist/release/.stage-linux"
-build_number="${ANALYZER_RELEASE_BUILD:-}"
-release_date="${ANALYZER_RELEASE_DATE:-}"
+repo_root="${ANALYZER_RELEASE_WORKSPACE:-$(pwd)}"
+artifact_dir="$repo_root/release"
+archive_name="${ANALYZER_RELEASE_ARCHIVE_NAME:-}"
+binary_path_input="${ANALYZER_RELEASE_BINARY_PATH:-}"
 
-parse_version() {
-  local version
-  version="$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n1)"
-  if [[ -z "$version" ]]; then
-    echo "Could not determine version from Cargo.toml." >&2
-    exit 1
-  fi
-  printf '%s\n' "$version"
-}
+if [[ -z "$archive_name" ]]; then
+  echo "ANALYZER_RELEASE_ARCHIVE_NAME is required." >&2
+  exit 1
+fi
 
-resolve_build_number() {
-  if [[ -n "$build_number" ]]; then
-    printf '%s\n' "$build_number"
-    return
-  fi
-  if [[ -n "${GITHUB_RUN_NUMBER:-}" ]]; then
-    printf '%s\n' "$GITHUB_RUN_NUMBER"
-    return
-  fi
-  git rev-list --count HEAD 2>/dev/null || printf '0\n'
-}
+if [[ -z "$binary_path_input" ]]; then
+  echo "ANALYZER_RELEASE_BINARY_PATH is required." >&2
+  exit 1
+fi
 
-resolve_release_date() {
-  if [[ -n "$release_date" ]]; then
-    printf '%s\n' "$release_date"
-    return
-  fi
-  date '+%Y%m%d'
-}
+binary_path="$repo_root/$binary_path_input"
 
-package_target() {
-  local arch="$1"
-  local target="$2"
-  local archive_name="$3"
-  local stage_dir="$stage_root/$arch"
+if [[ ! -f "$binary_path" ]]; then
+  echo "Binary not found: $binary_path" >&2
+  exit 1
+fi
 
-  case "$target" in
-    i686-unknown-linux-gnu)
-      CARGO_TARGET_I686_UNKNOWN_LINUX_GNU_LINKER=i686-linux-gnu-gcc cargo build --locked --release --target "$target"
-      ;;
-    aarch64-unknown-linux-gnu)
-      CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc cargo build --locked --release --target "$target"
-      ;;
-    *)
-      cargo build --locked --release --target "$target"
-      ;;
-  esac
+stage_dir="$(mktemp -d)"
+trap 'rm -rf "$stage_dir"' EXIT
 
-  rm -rf "$stage_dir"
-  mkdir -p "$stage_dir"
-  cp "target/$target/release/analyzer" "$stage_dir/analyzer"
-  (
-    cd "$stage_dir"
-    zip -q -r "$artifact_dir/$archive_name" analyzer
-  )
-}
+binary_name="$(basename "$binary_path")"
+archive_path="$artifact_dir/$archive_name"
 
-version="$(parse_version)"
-IFS='.' read -r major minor release <<< "$version"
-build="$(resolve_build_number)"
-stamp="$(resolve_release_date)"
-
-echo "🚀 Running Linux release packaging..."
+echo "🚀 Running release packaging in container..."
 mkdir -p "$artifact_dir"
-rustup target add i686-unknown-linux-gnu x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu
-
-package_target x86 i686-unknown-linux-gnu "analyzer-cli.${major}.${minor}.${release}.${build}_${stamp}-linux-x86.zip"
-package_target amd64 x86_64-unknown-linux-gnu "analyzer-cli.${major}.${minor}.${release}.${build}_${stamp}-linux-amd64.zip"
-package_target arm aarch64-unknown-linux-gnu "analyzer-cli.${major}.${minor}.${release}.${build}_${stamp}-linux-arm.zip"
-
-for archive in "$artifact_dir"/*.zip; do
-  sha256sum "$archive" > "$archive.sha256"
-done
-
-echo "✅ Linux release artifacts written to $artifact_dir."
+rm -f "$archive_path"
+cp "$binary_path" "$stage_dir/$binary_name"
+(
+  cd "$stage_dir"
+  zip -q -r "$archive_path" "$binary_name"
+)
+echo "✅ Release artifact written to $archive_path."

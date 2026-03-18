@@ -197,12 +197,13 @@ bash ./scripts/linux/setup-dev --help
 
 Release packaging conventions:
 
-- `scripts/linux/release` produces Linux archives for `x86`, `amd64`, and `arm`
-- `scripts/windows/release.ps1` produces Windows archives for `x86`, `amd64`, and `arm`
-- `scripts/macos/release` produces macOS archives for `x86`, `amd64`, and `arm`
-- archive names follow `analyzer-cli.<Major>.<Minor>.<Release>.<Build>_<YYYYMMDD>-<platform>-<arch>.zip`
-- `Build` defaults to `GITHUB_RUN_NUMBER` when available, otherwise the git commit count
-- use `ANALYZER_RELEASE_BUILD` or `--build-number` / `-BuildNumber`, and `ANALYZER_RELEASE_DATE` or `--release-date` / `-ReleaseDate`, to override naming metadata
+- `scripts/linux/release` produces one Linux archive for the current host architecture
+- `scripts/windows/release.ps1` produces one Windows archive for the current host architecture
+- `scripts/macos/release` produces one macOS archive for the current host architecture
+- archive names follow `analizer-cli_<Version>_<YYYYMMDD>_<platform>-<arch>.zip`
+- release archives are written under `release/`
+- use `ANALYZER_RELEASE_DATE` or `--release-date` / `-ReleaseDate` to override the date stamp
+- `ANALYZER_RELEASE_BUILD` and `--build-number` / `-BuildNumber` remain accepted for compatibility, but are ignored by the current archive naming convention
 
 ### Containers and devcontainer
 

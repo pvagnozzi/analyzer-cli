@@ -1,0 +1,10 @@
+# Cross-compilation linker configuration for Linux targets.
+# The named linkers are provided by the following packages on Debian/Ubuntu:
+#   aarch64-linux-gnu-gcc → gcc-aarch64-linux-gnu
+#   i686-linux-gnu-gcc    → gcc-i686-linux-gnu
+
+[target.aarch64-unknown-linux-gnu]
+linker = "aarch64-linux-gnu-gcc"
+
+[target.i686-unknown-linux-gnu]
+linker = "i686-linux-gnu-gcc"

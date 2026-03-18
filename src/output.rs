@@ -32,7 +32,7 @@ const EXEIN_ASCII: [&str; 6] = [
 pub fn print_welcome() {
     static PRINTED: AtomicBool = AtomicBool::new(false);
 
-    if PRINTED.swap(true, Ordering::SeqCst) {
+    if PRINTED.swap(true, Ordering::AcqRel) {
         return;
     }
 

@@ -200,15 +200,7 @@ pub async fn run_score(client: &AnalyzerClient, scan_id: Uuid, format: Format) -
                     style(i18n::text(Text::Score)).underlined(),
                 );
                 for s in &score.scores {
-                    let score_str = format!("{:<5}", s.score);
-                    let score_styled = if s.score >= 80 {
-                        style(score_str).green().to_string()
-                    } else if s.score >= 50 {
-                        style(score_str).yellow().to_string()
-                    } else {
-                        style(score_str).red().to_string()
-                    };
-                    eprintln!("  {:<20}  {}", s.analysis_type, score_styled);
+                    eprintln!("  {:<20}  {}", s.analysis_type, format_score(Some(s.score)));
                 }
             }
             eprintln!();
@@ -559,26 +551,24 @@ pub async fn run_results(
             println!("{}", serde_json::to_string_pretty(&results)?);
         }
         Format::Human | Format::Table => {
-            let all_values: Vec<&serde_json::Value> = results.findings.iter().collect();
-
-            if all_values.is_empty() {
+            if results.findings.is_empty() {
                 eprintln!("\n  {}\n", i18n::no_findings());
                 return Ok(());
             }
 
             match analysis_type {
-                AnalysisType::Cve => render_cve_table(&all_values)?,
-                AnalysisType::PasswordHash => render_password_table(&all_values)?,
-                AnalysisType::Malware => render_malware_table(&all_values)?,
-                AnalysisType::Hardening => render_hardening_table(&all_values)?,
-                AnalysisType::Capabilities => render_capabilities_table(&all_values)?,
-                AnalysisType::Crypto => render_crypto_table(&all_values)?,
-                AnalysisType::SoftwareBom => render_sbom_table(&all_values)?,
-                AnalysisType::Kernel => render_kernel_table(&all_values)?,
-                AnalysisType::Symbols => render_symbols_table(&all_values)?,
-                AnalysisType::Tasks => render_tasks_table(&all_values)?,
-                AnalysisType::Info => render_info(&all_values)?,
-                AnalysisType::StackOverflow => render_info(&all_values)?,
+                AnalysisType::Cve => render_cve_table(&results.findings)?,
+                AnalysisType::PasswordHash => render_password_table(&results.findings)?,
+                AnalysisType::Malware => render_malware_table(&results.findings)?,
+                AnalysisType::Hardening => render_hardening_table(&results.findings)?,
+                AnalysisType::Capabilities => render_capabilities_table(&results.findings)?,
+                AnalysisType::Crypto => render_crypto_table(&results.findings)?,
+                AnalysisType::SoftwareBom => render_sbom_table(&results.findings)?,
+                AnalysisType::Kernel => render_kernel_table(&results.findings)?,
+                AnalysisType::Symbols => render_symbols_table(&results.findings)?,
+                AnalysisType::Tasks => render_tasks_table(&results.findings)?,
+                AnalysisType::Info => render_info(&results.findings)?,
+                AnalysisType::StackOverflow => render_info(&results.findings)?,
             }
 
             let total_pages = results.total_findings.div_ceil(per_page as u64);
@@ -591,7 +581,7 @@ pub async fn run_results(
     Ok(())
 }
 
-fn render_cve_table(values: &[&serde_json::Value]) -> Result<()> {
+fn render_cve_table(values: &[serde_json::Value]) -> Result<()> {
     eprintln!();
     eprintln!(
         "  {:<8}  {:<15}  {:<5}  {:<14}  {:<20}  {}",
@@ -603,7 +593,7 @@ fn render_cve_table(values: &[&serde_json::Value]) -> Result<()> {
         style(i18n::text(Text::Summary)).underlined(),
     );
     for val in values {
-        if let Ok(f) = serde_json::from_value::<CveFinding>((*val).clone()) {
+        if let Ok(f) = serde_json::from_value::<CveFinding>(val.clone()) {
             let score_str = f
                 .cvss
                 .as_ref()
@@ -617,12 +607,6 @@ fn render_cve_table(values: &[&serde_json::Value]) -> Result<()> {
                 .first()
                 .and_then(|p| p.product.as_deref())
                 .unwrap_or("-");
-            let summary = f.summary.as_deref().unwrap_or("");
-            let summary_trunc = if summary.len() > 40 {
-                format!("{}...", &summary[..37])
-            } else {
-                summary.to_string()
-            };
             eprintln!(
                 "  {}  {:<15}  {:<5}  {:<14}  {:<20}  {}",
                 sev,
@@ -630,14 +614,14 @@ fn render_cve_table(values: &[&serde_json::Value]) -> Result<()> {
                 score_str,
                 truncate_str(f.vendor.as_deref().unwrap_or("-"), 14),
                 truncate_str(product, 20),
-                summary_trunc,
+                truncate_str(f.summary.as_deref().unwrap_or(""), 40),
             );
         }
     }
     Ok(())
 }
 
-fn render_password_table(values: &[&serde_json::Value]) -> Result<()> {
+fn render_password_table(values: &[serde_json::Value]) -> Result<()> {
     eprintln!();
     eprintln!(
         "  {:<8}  {:<20}  {}",
@@ -646,7 +630,7 @@ fn render_password_table(values: &[&serde_json::Value]) -> Result<()> {
         style(i18n::text(Text::Password)).underlined(),
     );
     for val in values {
-        if let Ok(f) = serde_json::from_value::<PasswordFinding>((*val).clone()) {
+        if let Ok(f) = serde_json::from_value::<PasswordFinding>(val.clone()) {
             let sev = format_severity(f.severity.as_deref().unwrap_or("unknown"), 8);
             eprintln!(
                 "  {}  {:<20}  {}",
@@ -659,7 +643,7 @@ fn render_password_table(values: &[&serde_json::Value]) -> Result<()> {
     Ok(())
 }
 
-fn render_malware_table(values: &[&serde_json::Value]) -> Result<()> {
+fn render_malware_table(values: &[serde_json::Value]) -> Result<()> {
     eprintln!();
     eprintln!(
         "  {:<30}  {:<40}  {}",
@@ -668,7 +652,7 @@ fn render_malware_table(values: &[&serde_json::Value]) -> Result<()> {
         style(i18n::text(Text::Engine)).underlined(),
     );
     for val in values {
-        if let Ok(f) = serde_json::from_value::<MalwareFinding>((*val).clone()) {
+        if let Ok(f) = serde_json::from_value::<MalwareFinding>(val.clone()) {
             eprintln!(
                 "  {:<30}  {:<40}  {}",
                 truncate_str(f.filename.as_deref().unwrap_or("-"), 30),
@@ -680,7 +664,7 @@ fn render_malware_table(values: &[&serde_json::Value]) -> Result<()> {
     Ok(())
 }
 
-fn render_hardening_table(values: &[&serde_json::Value]) -> Result<()> {
+fn render_hardening_table(values: &[serde_json::Value]) -> Result<()> {
     eprintln!();
     eprintln!(
         "  {:<8}  {:<30}  {:<6}  {:<3}  {:<7}  {:<7}  {}",
@@ -693,7 +677,7 @@ fn render_hardening_table(values: &[&serde_json::Value]) -> Result<()> {
         style(i18n::text(Text::Fortify)).underlined(),
     );
     for val in values {
-        if let Ok(f) = serde_json::from_value::<HardeningFinding>((*val).clone()) {
+        if let Ok(f) = serde_json::from_value::<HardeningFinding>(val.clone()) {
             let sev = format_severity(f.severity.as_deref().unwrap_or("unknown"), 8);
             eprintln!(
                 "  {}  {:<30}  {}  {}  {:<7}  {:<7}  {}",
@@ -710,7 +694,7 @@ fn render_hardening_table(values: &[&serde_json::Value]) -> Result<()> {
     Ok(())
 }
 
-fn render_capabilities_table(values: &[&serde_json::Value]) -> Result<()> {
+fn render_capabilities_table(values: &[serde_json::Value]) -> Result<()> {
     eprintln!();
     eprintln!(
         "  {:<30}  {:<8}  {:<9}  {}",
@@ -720,7 +704,7 @@ fn render_capabilities_table(values: &[&serde_json::Value]) -> Result<()> {
         style(i18n::text(Text::Syscalls)).underlined(),
     );
     for val in values {
-        if let Ok(f) = serde_json::from_value::<CapabilityFinding>((*val).clone()) {
+        if let Ok(f) = serde_json::from_value::<CapabilityFinding>(val.clone()) {
             let sev = format_severity(f.level.as_deref().unwrap_or("unknown"), 8);
             eprintln!(
                 "  {:<30}  {}  {:<9}  {}",
@@ -768,7 +752,7 @@ fn format_bool(val: bool, width: usize) -> String {
     }
 }
 
-fn render_crypto_table(values: &[&serde_json::Value]) -> Result<()> {
+fn render_crypto_table(values: &[serde_json::Value]) -> Result<()> {
     eprintln!();
     eprintln!(
         "  {:<14}  {:<20}  {:<20}  {:<8}  {}",
@@ -779,7 +763,7 @@ fn render_crypto_table(values: &[&serde_json::Value]) -> Result<()> {
         style(i18n::text(Text::Aux)).underlined(),
     );
     for val in values {
-        if let Ok(f) = serde_json::from_value::<CryptoFinding>((*val).clone()) {
+        if let Ok(f) = serde_json::from_value::<CryptoFinding>(val.clone()) {
             let aux = if f.aux.is_empty() {
                 "-".to_string()
             } else {
@@ -798,7 +782,7 @@ fn render_crypto_table(values: &[&serde_json::Value]) -> Result<()> {
     Ok(())
 }
 
-fn render_sbom_table(values: &[&serde_json::Value]) -> Result<()> {
+fn render_sbom_table(values: &[serde_json::Value]) -> Result<()> {
     eprintln!();
     eprintln!(
         "  {:<30}  {:<14}  {:<12}  {}",
@@ -808,7 +792,7 @@ fn render_sbom_table(values: &[&serde_json::Value]) -> Result<()> {
         style(i18n::text(Text::Licenses)).underlined(),
     );
     for val in values {
-        if let Ok(f) = serde_json::from_value::<SbomComponent>((*val).clone()) {
+        if let Ok(f) = serde_json::from_value::<SbomComponent>(val.clone()) {
             let licenses = f
                 .licenses
                 .iter()
@@ -832,9 +816,9 @@ fn render_sbom_table(values: &[&serde_json::Value]) -> Result<()> {
     Ok(())
 }
 
-fn render_kernel_table(values: &[&serde_json::Value]) -> Result<()> {
+fn render_kernel_table(values: &[serde_json::Value]) -> Result<()> {
     for val in values {
-        if let Ok(f) = serde_json::from_value::<KernelFinding>((*val).clone()) {
+        if let Ok(f) = serde_json::from_value::<KernelFinding>(val.clone()) {
             if let Some(file) = &f.file {
                 eprintln!(
                     "\n  {} {}",
@@ -859,7 +843,7 @@ fn render_kernel_table(values: &[&serde_json::Value]) -> Result<()> {
     Ok(())
 }
 
-fn render_symbols_table(values: &[&serde_json::Value]) -> Result<()> {
+fn render_symbols_table(values: &[serde_json::Value]) -> Result<()> {
     eprintln!();
     eprintln!(
         "  {:<40}  {:<12}  {}",
@@ -868,7 +852,7 @@ fn render_symbols_table(values: &[&serde_json::Value]) -> Result<()> {
         style(i18n::text(Text::Bind)).underlined(),
     );
     for val in values {
-        if let Ok(f) = serde_json::from_value::<IdfSymbolFinding>((*val).clone()) {
+        if let Ok(f) = serde_json::from_value::<IdfSymbolFinding>(val.clone()) {
             eprintln!(
                 "  {:<40}  {:<12}  {}",
                 truncate_str(f.symbol_name.as_deref().unwrap_or("-"), 40),
@@ -880,7 +864,7 @@ fn render_symbols_table(values: &[&serde_json::Value]) -> Result<()> {
     Ok(())
 }
 
-fn render_tasks_table(values: &[&serde_json::Value]) -> Result<()> {
+fn render_tasks_table(values: &[serde_json::Value]) -> Result<()> {
     eprintln!();
     eprintln!(
         "  {:<30}  {}",
@@ -888,7 +872,7 @@ fn render_tasks_table(values: &[&serde_json::Value]) -> Result<()> {
         style(i18n::text(Text::Function)).underlined(),
     );
     for val in values {
-        if let Ok(f) = serde_json::from_value::<IdfTaskFinding>((*val).clone()) {
+        if let Ok(f) = serde_json::from_value::<IdfTaskFinding>(val.clone()) {
             eprintln!(
                 "  {:<30}  {}",
                 truncate_str(f.task_name.as_deref().unwrap_or("-"), 30),
@@ -899,7 +883,7 @@ fn render_tasks_table(values: &[&serde_json::Value]) -> Result<()> {
     Ok(())
 }
 
-fn render_info(values: &[&serde_json::Value]) -> Result<()> {
+fn render_info(values: &[serde_json::Value]) -> Result<()> {
     for val in values {
         eprintln!("\n{}", serde_json::to_string_pretty(val)?);
     }

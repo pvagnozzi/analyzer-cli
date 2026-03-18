@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+DRY_RUN=0
+RUNTIME=""
+BUILD_NUMBER="${ANALYZER_RELEASE_BUILD:-}"
+RELEASE_DATE="${ANALYZER_RELEASE_DATE:-}"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../common/runtime.sh
+. "$SCRIPT_DIR/../common/runtime.sh"
+
+show_help() {
+  cat <<'EOF'
+🚀 release for Linux
+
+Synopsis:
+  Build Linux release binaries for all supported architectures and package each
+  one using the repository release container.
+
+Usage:
+  bash ./scripts/linux/commands/release [--runtime docker|podman] [--build-number N] [--release-date YYYYMMDD] [--dry-run] [--help]
+
+Artifacts:
+  release/analyzer-cli_<Version>_<YYYYMMDD>_linux-<arch>.zip
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --help|-h) show_help; exit 0 ;;
+    --dry-run) DRY_RUN=1 ;;
+    --runtime) RUNTIME="$2"; shift ;;
+    --build-number) BUILD_NUMBER="$2"; shift ;;
+    --release-date) RELEASE_DATE="$2"; shift ;;
+    *) log ERR "Unknown argument: $1"; show_help; exit 1 ;;
+  esac
+  shift
+done
+
+parse_version() {
+  local version
+  version="$(sed -n 's/^version = "\(.*\)"$/\1/p' "$REPO_ROOT/Cargo.toml" | head -n1)"
+  if [[ -z "$version" ]]; then
+    log ERR "Could not determine version from Cargo.toml."
+    exit 1
+  fi
+  printf '%s\n' "$version"
+}
+
+ensure_tools() {
+  command -v cargo  >/dev/null 2>&1 || { log ERR "cargo is required.";  exit 1; }
+  command -v rustup >/dev/null 2>&1 || { log ERR "rustup is required."; exit 1; }
+}
+
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+RUNTIME="$(resolve_runtime)"
+HOST_REPO_ROOT="$(normalize_host_path "$REPO_ROOT")"
+DOCKERFILE="$(host_path_join "$HOST_REPO_ROOT" "containers/release/Dockerfile")"
+TAG="analyzer-cli-release:local"
+VERSION="$(parse_version)"
+STAMP="${RELEASE_DATE:-$(date '+%Y%m%d')}"
+
+[[ -n "$BUILD_NUMBER" ]] && log WARN "Build number metadata is ignored by the current archive naming convention."
+[[ -n "$RELEASE_DATE" ]] && log INFO "Using release date override: $RELEASE_DATE"
+log INFO "Using container runtime: $RUNTIME"
+
+ensure_tools
+run_cmd "mkdir -p \"$REPO_ROOT/release\""
+ensure_image "$TAG" "$DOCKERFILE" "$HOST_REPO_ROOT"
+
+# Targets: "arch_label:rust_target:cross_linker_or_empty"
+LINUX_TARGETS=(
+  "amd64:x86_64-unknown-linux-gnu:"
+  "x86:i686-unknown-linux-gnu:i686-linux-gnu-gcc"
+  "arm:aarch64-unknown-linux-gnu:aarch64-linux-gnu-gcc"
+)
+
+built_count=0
+for entry in "${LINUX_TARGETS[@]}"; do
+  IFS=':' read -r arch target linker <<< "$entry"
+  if [[ -n "$linker" ]] && ! command -v "$linker" >/dev/null 2>&1; then
+    log WARN "Skipping $target: cross-linker '$linker' not found (install via package manager)."
+    continue
+  fi
+  log INFO "Building $target ($arch)..."
+  if [[ "$DRY_RUN" -eq 0 ]]; then
+    rustup target add "$target"
+    if ! cargo build --locked --release --target "$target"; then
+      log WARN "Build failed for $target, skipping."
+      continue
+    fi
+  else
+    log INFO "[dry-run] rustup target add $target"
+    log INFO "[dry-run] cargo build --locked --release --target $target"
+  fi
+  archive_name="analyzer-cli_${VERSION}_${STAMP}_linux-${arch}.zip"
+  log INFO "Packaging $target -> $archive_name"
+  run_cmd "$RUNTIME run --rm -e ANALYZER_RELEASE_ARCHIVE_NAME=\"$archive_name\" -e ANALYZER_RELEASE_BINARY_PATH=\"target/$target/release/analyzer\" -v \"$HOST_REPO_ROOT:/workspace\" -w /workspace $TAG"
+  built_count=$((built_count + 1))
+done
+
+if [[ "$built_count" -eq 0 ]] && [[ "$DRY_RUN" -eq 0 ]]; then
+  log ERR "No targets were built successfully."
+  exit 1
+fi
+
+log OK "Release archives written to $REPO_ROOT/release"

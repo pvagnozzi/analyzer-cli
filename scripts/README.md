@@ -4,18 +4,23 @@ This repository includes cross-platform development bootstrap scripts under `scr
 
 ## Layout
 
-- `scripts/windows/setup-dev.ps1` - PowerShell
-- `scripts/windows/build.ps1` - PowerShell
-- `scripts/windows/release.ps1` - PowerShell
-- `scripts/windows/test.ps1` - PowerShell
-- `scripts/macos/setup-dev` - zsh
-- `scripts/macos/build` - zsh
-- `scripts/macos/release` - zsh
-- `scripts/macos/test` - zsh
-- `scripts/linux/setup-dev` - bash
-- `scripts/linux/build` - bash
-- `scripts/linux/release` - bash
-- `scripts/linux/test` - bash
+Scripts are organised per operating system and then by topic:
+
+```
+scripts/
+  linux/
+    commands/    build  release  test         # container-backed operations
+    common/      runtime.sh                   # shared bash utilities
+    environment/ setup-dev                    # workstation bootstrap
+  macos/
+    commands/    build  release  test         # container-backed operations
+    common/      runtime.sh                   # shared zsh utilities
+    environment/ setup-dev                    # workstation bootstrap
+  windows/
+    commands/    build.ps1  release.ps1  test.ps1   # container-backed operations
+    common/      runtime.ps1                         # shared PowerShell utilities
+    environment/ setup-dev.ps1                       # workstation bootstrap
+```
 
 Windows scripts use the `.ps1` extension so they can be executed directly with `pwsh -File`.
 
@@ -28,31 +33,36 @@ Each `setup-dev` script is:
 - colorized and emoji-friendly
 - self-documented with `--help`
 
-The container runner scripts follow the same conventions.
+The container runner scripts follow the same conventions and build their images on demand when the local image does not exist yet.
 
 ## What `release` does
 
-Each platform-specific `release` script packages three archives for its own platform:
-
-- `x86`
-- `amd64`
-- `arm`
+Each platform-specific `release` script builds all supported architectures for that platform and
+packages each binary into a separate archive.
 
 Archive names follow:
 
-- `analyzer-cli.<Major>.<Minor>.<Release>.<Build>_<YYYYMMDD>-linux-<arch>.zip`
-- `analyzer-cli.<Major>.<Minor>.<Release>.<Build>_<YYYYMMDD>-windows-<arch>.zip`
-- `analyzer-cli.<Major>.<Minor>.<Release>.<Build>_<YYYYMMDD>-macos-<arch>.zip`
+- `analyzer-cli_<Version>_<YYYYMMDD>_linux-<arch>.zip`
+- `analyzer-cli_<Version>_<YYYYMMDD>_windows-<arch>.zip`
+- `analyzer-cli_<Version>_<YYYYMMDD>_macos-<arch>.zip`
 
-The scripts write artifacts under `dist/release/<platform>/`.
+Supported architectures per platform:
 
-`Build` defaults to `GITHUB_RUN_NUMBER` when available, otherwise the current git commit count. You can override it with `ANALYZER_RELEASE_BUILD` or `--build-number` / `-BuildNumber`. You can override the date with `ANALYZER_RELEASE_DATE` or `--release-date` / `-ReleaseDate`.
+| Platform | amd64 | x86 | arm / arm64 |
+|----------|-------|-----|-------------|
+| Linux    | ✅    | ✅  | ✅ (requires `aarch64-linux-gnu-gcc`) |
+| macOS    | ✅    | —   | ✅          |
+| Windows  | ✅    | ✅  | ✅ (requires MSVC ARM64 toolchain)    |
+
+The scripts write artifacts under `release/`.
+
+`ANALYZER_RELEASE_DATE` or `--release-date` / `-ReleaseDate` can override the date stamp. `ANALYZER_RELEASE_BUILD` and `--build-number` / `-BuildNumber` remain accepted for compatibility, but they are ignored by the current archive naming convention.
 
 On Windows, invoke the scripts directly with `pwsh -File`, for example:
 
 ```powershell
-pwsh -File .\scripts\windows\release.ps1 -Help
-pwsh -File .\scripts\windows\release.ps1 -DryRun -BuildNumber 42 -ReleaseDate 20260317
+pwsh -File .\scripts\windows\commands\release.ps1 -Help
+pwsh -File .\scripts\windows\commands\release.ps1 -DryRun -BuildNumber 42 -ReleaseDate 20260317
 ```
 
 ## What `setup-dev` does
@@ -77,22 +87,40 @@ The scripts also make sure Oh My Posh starts from the current user's PowerShell 
 ### Windows
 
 ```powershell
-pwsh -File .\scripts\windows\setup-dev.ps1 --help
-pwsh -File .\scripts\windows\setup-dev.ps1
+# Environment setup
+pwsh -File .\scripts\windows\environment\setup-dev.ps1 --help
+pwsh -File .\scripts\windows\environment\setup-dev.ps1
+
+# Build / test / release
+pwsh -File .\scripts\windows\commands\build.ps1
+pwsh -File .\scripts\windows\commands\test.ps1
+pwsh -File .\scripts\windows\commands\release.ps1
 ```
 
 ### macOS
 
 ```bash
-zsh ./scripts/macos/setup-dev --help
-zsh ./scripts/macos/setup-dev
+# Environment setup
+zsh ./scripts/macos/environment/setup-dev --help
+zsh ./scripts/macos/environment/setup-dev
+
+# Build / test / release
+zsh ./scripts/macos/commands/build
+zsh ./scripts/macos/commands/test
+zsh ./scripts/macos/commands/release
 ```
 
 ### Linux
 
 ```bash
-bash ./scripts/linux/setup-dev --help
-bash ./scripts/linux/setup-dev
+# Environment setup
+bash ./scripts/linux/environment/setup-dev --help
+bash ./scripts/linux/environment/setup-dev
+
+# Build / test / release
+bash ./scripts/linux/commands/build
+bash ./scripts/linux/commands/test
+bash ./scripts/linux/commands/release
 ```
 
 ## Notes

@@ -6,6 +6,25 @@
   },
   "workspaceFolder": "/workspace",
   "remoteUser": "vscode",
+  // Mount the host container-engine socket into the container so that docker/podman
+  // CLI commands inside the devcontainer talk to the host daemon.
+  //
+  // Docker users  : no extra setup required (the default path is used).
+  // Podman users  : export CONTAINER_SOCKET_PATH to your Podman socket path
+  //                 BEFORE opening the devcontainer, e.g.:
+  //                   export CONTAINER_SOCKET_PATH=/run/user/1000/podman/podman.sock
+  //                 With rootless Podman the path is usually:
+  //                   $XDG_RUNTIME_DIR/podman/podman.sock
+  //                 Enable the socket if needed:
+  //                   systemctl --user enable --now podman.socket
+  "mounts": [
+    "source=${localEnv:CONTAINER_SOCKET_PATH,/var/run/docker.sock},target=/var/run/docker.sock,type=bind"
+  ],
+  // Always expose a Docker-API-compatible DOCKER_HOST inside the container.
+  // Both the Docker CLI and the Podman CLI support this variable.
+  "containerEnv": {
+    "DOCKER_HOST": "unix:///var/run/docker.sock"
+  },
   "postCreateCommand": "bash /usr/local/share/analyzer-devcontainer/post-create.sh",
   "customizations": {
     "vscode": {
@@ -18,7 +37,10 @@
       ],
       "settings": {
         "terminal.integrated.defaultProfile.linux": "bash",
-        "rust-analyzer.check.command": "clippy"
+        "rust-analyzer.check.command": "clippy",
+        // Podman users: set this to "podman" so the Docker VS Code extension
+        // uses the Podman CLI instead of the docker binary.
+        "docker.dockerPath": "docker"
       }
     }
   }

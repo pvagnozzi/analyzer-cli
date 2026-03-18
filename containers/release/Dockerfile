@@ -18,4 +18,4 @@ COPY containers/release/run-release.sh /usr/local/bin/run-release.sh
 RUN chmod +x /usr/local/bin/run-release.sh
 
 WORKDIR /workspace
-ENTRYPOINT ["/usr/local/bin/run-release.sh"]
+ENTRYPOINT ["/bin/bash", "/usr/local/bin/run-release.sh"]
