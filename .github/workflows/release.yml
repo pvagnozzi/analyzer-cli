@@ -12,11 +12,10 @@ on:
 
 concurrency:
   group: release-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   contents: write
-  packages: write
 
 env:
   CARGO_TERM_COLOR: always
@@ -86,6 +85,7 @@ jobs:
         with:
           name: release-archives
           path: dist/releases/**/*.zip
+          if-no-files-found: error
           retention-days: 30
 
   # ── Create or update GitHub Release with all archives ────────────────────
