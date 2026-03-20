@@ -110,12 +110,13 @@ jobs:
       - name: Derive tag name
         id: tag
         run: |
-          # For tag-triggered runs use the tag; otherwise derive from branch + version.
+          # For tag-triggered runs use the tag as-is.
+          # For branch-triggered runs use the full semVer from GitVersion,
+          # which already carries pre-release suffixes for non-main branches.
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
           else
-            BRANCH="${GITHUB_REF_NAME}"   # main / stable / develop
-            echo "tag=v${VERSION}-${BRANCH}" >> "$GITHUB_OUTPUT"
+            echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Create or update release
@@ -139,7 +140,7 @@ jobs:
   homebrew:
     name: Update Homebrew tap
     runs-on: ubuntu-latest
-    needs: [publish]
+    needs: [version, publish]
     if: github.ref_name == 'main' || github.ref_type == 'tag'
     steps:
       - uses: actions/checkout@v4
