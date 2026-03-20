@@ -124,17 +124,24 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.tag.outputs.tag }}
         run: |
-          ARCHIVES=$(find dist/releases -name "*.zip" | tr '\n' ' ')
-          if gh release view "$TAG" &>/dev/null; then
-            gh release upload "$TAG" $ARCHIVES --clobber
-          else
-            PRERELEASE=""
-            [[ "${GITHUB_REF_NAME}" != "main" ]] && PRERELEASE="--prerelease"
-            gh release create "$TAG" $ARCHIVES \
-              --title "Release $TAG ($STAMP)" \
-              --generate-notes \
-              $PRERELEASE
+          mapfile -t ARCHIVES < <(find dist/releases -name "*.zip" | sort)
+          if [[ ${#ARCHIVES[@]} -eq 0 ]]; then
+            echo "No archives found — aborting release." >&2
+            exit 1
           fi
+
+          PRERELEASE=""
+          [[ "${GITHUB_REF_NAME}" != "main" ]] && PRERELEASE="--prerelease"
+
+          # Create release if it doesn't exist yet; ignore "already exists" error
+          # (handles concurrent main/stable runs targeting the same semver tag).
+          gh release create "$TAG" \
+            --title "Release $TAG ($STAMP)" \
+            --generate-notes \
+            $PRERELEASE 2>/dev/null || true
+
+          # Upload/overwrite archives — idempotent
+          gh release upload "$TAG" "${ARCHIVES[@]}" --clobber
 
   # ── Update Homebrew tap (main / tag only) ─────────────────────────────────
   homebrew:
