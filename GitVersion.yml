@@ -11,6 +11,13 @@ no-bump-message: '\+semver:\s?(none|skip)'
 branches:
   main:
     regex: ^main$
+  stable:
+    regex: ^stable$
+    increment: Patch
+    prevent-increment-of-merged-branch-version: true
+    track-merge-target: false
+    source-branches: [main]
+    is-release-branch: true
   develop:
     regex: ^develop$
   feature:

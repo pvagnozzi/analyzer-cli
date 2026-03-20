@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, stable, develop]
   pull_request:
-    branches: [main, develop]
+    branches: [main, stable, develop]
   workflow_dispatch:
 
 concurrency:
@@ -28,15 +28,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo check --locked --all-targets
 
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo test --locked
-
   fmt:
     name: Format
     runs-on: ubuntu-latest
@@ -58,11 +49,38 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo clippy --all-targets -- -D warnings
 
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: [check, fmt, clippy]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --locked
+
   build:
     name: Build
     runs-on: ubuntu-latest
+    needs: [check, fmt, clippy]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --locked --release
+
+  # Required status check — branch protection rules reference this job.
+  # It succeeds only when all quality gates above pass.
+  ci:
+    name: CI
+    runs-on: ubuntu-latest
+    needs: [test, build]
+    if: always()
+    steps:
+      - name: All checks passed
+        run: |
+          if [[ "${{ needs.test.result }}" != "success" || "${{ needs.build.result }}" != "success" ]]; then
+            echo "One or more required checks failed."
+            exit 1
+          fi
+          echo "All checks passed."
