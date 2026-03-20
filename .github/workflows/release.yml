@@ -26,25 +26,29 @@ jobs:
     name: Compute version
     runs-on: ubuntu-latest
     outputs:
-      semVer: ${{ steps.gv.outputs.semVer }}
-      majorMinorPatch: ${{ steps.gv.outputs.majorMinorPatch }}
-      buildMetaData: ${{ steps.gv.outputs.buildMetaData }}
-      stamp: ${{ steps.stamp.outputs.stamp }}
+      semVer: ${{ steps.compute.outputs.semVer }}
+      majorMinorPatch: ${{ steps.compute.outputs.majorMinorPatch }}
+      buildMetaData: ${{ steps.compute.outputs.buildMetaData }}
+      stamp: ${{ steps.compute.outputs.stamp }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Setup GitVersion
-        uses: gittools/actions/gitversion/setup@v4
-        with:
-          versionSpec: "6.x"
-
-      - name: Execute GitVersion
-        id: gv
-        uses: gittools/actions/gitversion/execute@v4
-        with:
-          configFilePath: GitVersion.yml
+      - name: Compute version
+        id: compute
+        run: |
+          BASE=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          BUILD=$(git rev-list --count HEAD)
+          BRANCH="${GITHUB_REF_NAME}"
+          case "$BRANCH" in
+            main)   SEMVER="${BASE}" ;;
+            stable) SEMVER="${BASE}-stable.${BUILD}" ;;
+            *)      SEMVER="${BASE}-${BRANCH//\//-}.${BUILD}" ;;
+          esac
+          echo "majorMinorPatch=${BASE}" >> "$GITHUB_OUTPUT"
+          echo "buildMetaData=${BUILD}"  >> "$GITHUB_OUTPUT"
+          echo "semVer=${SEMVER}"        >> "$GITHUB_OUTPUT"
 
       - name: Compute date stamp
         id: stamp
