@@ -1,8 +1,8 @@
-# Development bootstrap scripts
+# 🛠️ Development bootstrap scripts
 
 This repository includes cross-platform development bootstrap scripts under `scripts/`.
 
-## Layout
+## 📁 Layout
 
 Scripts are organised per operating system and then by topic:
 
@@ -24,60 +24,82 @@ scripts/
 
 Windows scripts use the `.ps1` extension so they can be executed directly with `pwsh -File`.
 
-## Goals
+---
+
+## 🎯 Goals
 
 Each `setup-dev` script is:
 
-- idempotent
-- English-only
-- colorized and emoji-friendly
-- self-documented with `--help`
+- ♻️ **Idempotent** — safe to run multiple times
+- 🌍 **English-only** — all output in English
+- 🎨 **Colorized and emoji-friendly** — readable terminal UX
+- 📖 **Self-documented** — includes `--help`
 
 The container runner scripts follow the same conventions and build their images on demand when the local image does not exist yet.
 
-## What `release` does
+---
 
-Each platform-specific `release` script builds all supported architectures for that platform and
-packages each binary into a separate archive.
+## 📦 What `release` does
 
-Archive names follow:
+Any platform-specific `release` script (Linux, macOS, or Windows) builds **all** supported
+OS/architecture combinations in a single container run using
+[cargo-zigbuild](https://github.com/rust-cross/cargo-zigbuild) + Zig as the universal linker.
+No host Rust toolchain is required — the container handles everything.
 
-- `analyzer-cli_<Version>_<YYYYMMDD>_linux-<arch>.zip`
-- `analyzer-cli_<Version>_<YYYYMMDD>_windows-<arch>.zip`
-- `analyzer-cli_<Version>_<YYYYMMDD>_macos-<arch>.zip`
+**Output folder structure:**
 
-Supported architectures per platform:
+```
+dist/releases/
+  release_<VERSION>.<BUILD>_<YYYYMMDD>/
+    exein_analyzer_cli_<VERSION>.<BUILD>_<YYYYMMDD>_<OS>_<ARCH>.zip
+      analyzer   (or  analyzer.exe  on Windows targets)
+      LICENSE
+      CHANGELOG.md
+```
 
-| Platform | amd64 | x86 | arm / arm64 |
-|----------|-------|-----|-------------|
-| Linux    | ✅    | ✅  | ✅ (requires `aarch64-linux-gnu-gcc`) |
-| macOS    | ✅    | —   | ✅          |
-| Windows  | ✅    | ✅  | ✅ (requires MSVC ARM64 toolchain)    |
+**Supported targets (all produced in one run):**
 
-The scripts write artifacts under `release/`.
+| OS | Architecture | Rust target |
+|----|-------------|-------------|
+| 🐧 linux   | x64   | `x86_64-unknown-linux-gnu`    |
+| 🐧 linux   | x86   | `i686-unknown-linux-gnu`      |
+| 🐧 linux   | arm64 | `aarch64-unknown-linux-gnu`   |
+| 🪟 windows | x64   | `x86_64-pc-windows-gnu`       |
+| 🪟 windows | x86   | `i686-pc-windows-gnu`         |
+| 🪟 windows | arm64 | `aarch64-pc-windows-gnullvm`  |
+| 🍎 macos   | x64   | `x86_64-apple-darwin`         |
+| 🍎 macos   | arm64 | `aarch64-apple-darwin`        |
 
-`ANALYZER_RELEASE_DATE` or `--release-date` / `-ReleaseDate` can override the date stamp. `ANALYZER_RELEASE_BUILD` and `--build-number` / `-BuildNumber` remain accepted for compatibility, but they are ignored by the current archive naming convention.
+**Environment variables / flags:**
 
-On Windows, invoke the scripts directly with `pwsh -File`, for example:
+| Variable / flag | Default | Description |
+|----------------|---------|-------------|
+| `ANALYZER_RELEASE_BUILD` / `--build-number` | `0` | Build number appended to the version |
+| `ANALYZER_RELEASE_DATE` / `--release-date` | today | Override the `YYYYMMDD` date stamp |
+| `--dry-run` / `-DryRun` | off | Print commands without executing them |
+
+On Windows, invoke the script directly with `pwsh -File`:
 
 ```powershell
 pwsh -File .\scripts\windows\commands\release.ps1 -Help
 pwsh -File .\scripts\windows\commands\release.ps1 -DryRun -BuildNumber 42 -ReleaseDate 20260317
 ```
 
-## What `setup-dev` does
+---
+
+## 🚀 What `setup-dev` does
 
 Depending on the operating system, the script installs or configures:
 
-- PowerShell
-- Visual Studio Code
-- Git
-- Git LFS
-- GitHub CLI
-- GitFlow
-- Rust toolchain
-- Oh My Posh
-- package managers relevant to the platform
+- 💻 PowerShell
+- 🖊️ Visual Studio Code
+- 🔀 Git
+- 📦 Git LFS
+- 🐙 GitHub CLI
+- 🌿 GitFlow
+- 🦀 Rust toolchain
+- 🎨 Oh My Posh
+- 📋 Package managers relevant to the platform
 - Docker Desktop or Podman Desktop checks, with Podman fallback
 
 The scripts also make sure Oh My Posh starts from the current user's PowerShell profile.

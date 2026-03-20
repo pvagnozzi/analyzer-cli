@@ -1,8 +1,10 @@
-# Contributing
+# 🤝 Contributing
 
-Thanks for contributing to `analyzer-cli`.
+Thanks for contributing to `analyzer-cli`! Every bug report, feature suggestion, and pull request is appreciated.
 
-## Development environment
+---
+
+## 🛠️ Development environment
 
 1. Install Rust `1.85.0` or newer.
 2. Clone the repository.
@@ -14,17 +16,23 @@ cargo clippy --all-targets -- -D warnings
 cargo test --locked
 ```
 
-## Branching model
+---
 
-This repository follows a GitFlow-style model:
+## 🌿 Branching model
 
-- `main`: production-ready history
-- `develop`: integration branch
-- `feature/<topic>`: new functionality
-- `release/<version>`: release hardening
-- `hotfix/<topic>`: urgent fixes from `main`
+This repository follows a **GitFlow-style** model:
 
-## Versioning
+| Branch | Purpose |
+|--------|---------|
+| `main` | Production-ready history |
+| `develop` | Integration branch |
+| `feature/<topic>` | New functionality |
+| `release/<version>` | Release hardening |
+| `hotfix/<topic>` | Urgent fixes from `main` |
+
+---
+
+## 🏷️ Versioning
 
 Version calculation is handled by `GitVersion.yml`.
 
@@ -32,27 +40,35 @@ Version calculation is handled by `GitVersion.yml`.
 - Tag releases as `v<major>.<minor>.<patch>`.
 - Prefer meaningful commits; `+semver:` hints are supported by GitVersion when needed.
 
-Examples:
+**`+semver:` commit hints:**
 
-- `+semver: major`
-- `+semver: feature`
-- `+semver: fix`
-- `+semver: none`
+| Hint | Effect |
+|------|--------|
+| `+semver: major` | Bumps major version |
+| `+semver: feature` | Bumps minor version |
+| `+semver: fix` | Bumps patch version |
+| `+semver: none` | No version bump |
 
-## Pull requests
+---
 
-- Keep changes focused and well-described.
-- Update documentation for user-visible behavior changes.
-- Add or adjust tests when behavior changes.
-- Ensure CI passes before requesting review.
+## 📬 Pull requests
 
-## Coding standards
+- ✅ Keep changes focused and well-described.
+- ✅ Update documentation for user-visible behavior changes.
+- ✅ Add or adjust tests when behavior changes.
+- ✅ Ensure CI passes before requesting review.
+
+---
+
+## 🦀 Coding standards
 
 - Follow existing Rust patterns in `src/`.
 - Avoid broad error swallowing; prefer explicit propagation.
 - Preserve CLI compatibility unless the change explicitly requires a breaking change.
 - Keep output human-friendly by default and scriptable with `--format json`.
 
-## Security
+---
+
+## 🔒 Security
 
 If you believe you have found a security issue, please follow [SECURITY.md](SECURITY.md) instead of opening a public issue.

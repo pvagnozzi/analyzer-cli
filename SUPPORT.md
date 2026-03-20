@@ -1,13 +1,18 @@
-# Support
+# 💬 Support
 
-## Getting help
+## 🆘 Getting help
 
-- Use GitHub issues for bugs and feature requests.
-- Use pull requests for concrete changes ready for review.
-- For security-sensitive topics, follow [SECURITY.md](SECURITY.md).
+| Channel | Use for |
+|---------|---------|
+| [GitHub Issues](https://github.com/exein-io/analyzer-cli/issues) | 🐛 Bugs and 💡 feature requests |
+| [Pull Requests](https://github.com/exein-io/analyzer-cli/pulls) | Concrete changes ready for review |
+| [SECURITY.md](SECURITY.md) | 🔒 Security-sensitive topics |
 
-## Before opening an issue
+---
 
-- Confirm you are using a current release.
-- Include the command you ran and relevant CLI output.
+## ✅ Before opening an issue
+
+- Confirm you are using a **current release**.
+- Include the exact command you ran and the relevant CLI output.
 - If possible, rerun with `--format json` and attach sanitized output.
+- Check existing issues to avoid duplicates.

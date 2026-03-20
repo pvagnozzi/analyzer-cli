@@ -19,6 +19,7 @@ Thumbs.db
 *.temp
 
 # Release artifacts
+/dist/releases/
 /dist/*.zip
 /dist/*.tar.gz
 !/dist/install.sh

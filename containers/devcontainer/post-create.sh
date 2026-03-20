@@ -36,24 +36,25 @@ fi
 if [ -n "$ACTIVE_ENGINE" ]; then
     echo "🐳 Container engine detected: $ACTIVE_ENGINE"
 
-    # Create the container-engine wrapper (writable because we run as root during
-    # the postCreate step; the file will be owned by root, executable by all).
-    tee "$WRAPPER" >/dev/null <<EOF
+    # Create the container-engine wrapper.  The postCreate step runs as the
+    # remoteUser (vscode), which cannot write to /usr/local/bin directly.
+    # The vscode user in this base image has passwordless sudo.
+    sudo tee "$WRAPPER" >/dev/null <<EOF
 #!/usr/bin/env bash
 exec $ACTIVE_ENGINE "\$@"
 EOF
-    chmod +x "$WRAPPER"
+    sudo chmod +x "$WRAPPER"
 
     # If podman is the active engine, provide a docker shim so that tools that
     # call "docker" directly continue to work.
     if [ "$ACTIVE_ENGINE" = "podman" ] && command -v docker >/dev/null 2>&1; then
         # docker binary exists but couldn't reach a daemon; replace it with a
         # wrapper that forwards to podman.
-        tee /usr/local/bin/docker >/dev/null <<'EOF'
+        sudo tee /usr/local/bin/docker >/dev/null <<'EOF'
 #!/usr/bin/env bash
 exec podman "$@"
 EOF
-        chmod +x /usr/local/bin/docker
+        sudo chmod +x /usr/local/bin/docker
         echo "   ↳ /usr/local/bin/docker shimmed → podman"
     fi
 else

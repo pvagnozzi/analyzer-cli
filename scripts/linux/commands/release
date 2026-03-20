@@ -3,7 +3,7 @@ set -euo pipefail
 
 DRY_RUN=0
 RUNTIME=""
-BUILD_NUMBER="${ANALYZER_RELEASE_BUILD:-}"
+BUILD_NUMBER="${ANALYZER_RELEASE_BUILD:-0}"
 RELEASE_DATE="${ANALYZER_RELEASE_DATE:-}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -12,17 +12,20 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 show_help() {
   cat <<'EOF'
-🚀 release for Linux
+🚀 release — cross-compile all platforms/architectures from a single container
 
 Synopsis:
-  Build Linux release binaries for all supported architectures and package each
-  one using the repository release container.
+  Builds and packages release binaries for all supported OS/architecture
+  combinations (Linux, macOS, Windows × x64/x86/arm64) using the repository
+  release container (cargo-zigbuild). All archives are created in one container
+  run; no host Rust toolchain is required.
 
 Usage:
   bash ./scripts/linux/commands/release [--runtime docker|podman] [--build-number N] [--release-date YYYYMMDD] [--dry-run] [--help]
 
 Artifacts:
-  release/analyzer-cli_<Version>_<YYYYMMDD>_linux-<arch>.zip
+  dist/releases/release_<VERSION>.<BUILD>_<YYYYMMDD>/
+    exein_analyzer_cli_<VERSION>.<BUILD>_<YYYYMMDD>_<OS>_<ARCH>.zip
 EOF
 }
 
@@ -48,11 +51,6 @@ parse_version() {
   printf '%s\n' "$version"
 }
 
-ensure_tools() {
-  command -v cargo  >/dev/null 2>&1 || { log ERR "cargo is required.";  exit 1; }
-  command -v rustup >/dev/null 2>&1 || { log ERR "rustup is required."; exit 1; }
-}
-
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 RUNTIME="$(resolve_runtime)"
 HOST_REPO_ROOT="$(normalize_host_path "$REPO_ROOT")"
@@ -61,48 +59,21 @@ TAG="analyzer-cli-release:local"
 VERSION="$(parse_version)"
 STAMP="${RELEASE_DATE:-$(date '+%Y%m%d')}"
 
-[[ -n "$BUILD_NUMBER" ]] && log WARN "Build number metadata is ignored by the current archive naming convention."
-[[ -n "$RELEASE_DATE" ]] && log INFO "Using release date override: $RELEASE_DATE"
-log INFO "Using container runtime: $RUNTIME"
+log INFO "Version:  ${VERSION}.${BUILD_NUMBER}"
+log INFO "Date:     ${STAMP}"
+log INFO "Runtime:  ${RUNTIME}"
 
-ensure_tools
-run_cmd "mkdir -p \"$REPO_ROOT/release\""
+run_cmd "mkdir -p \"$REPO_ROOT/dist/releases\""
 ensure_image "$TAG" "$DOCKERFILE" "$HOST_REPO_ROOT"
 
-# Targets: "arch_label:rust_target:cross_linker_or_empty"
-LINUX_TARGETS=(
-  "amd64:x86_64-unknown-linux-gnu:"
-  "x86:i686-unknown-linux-gnu:i686-linux-gnu-gcc"
-  "arm:aarch64-unknown-linux-gnu:aarch64-linux-gnu-gcc"
-)
+log INFO "Launching release container for all targets..."
+run_cmd "$RUNTIME run --rm \
+  -e ANALYZER_RELEASE_VERSION=\"$VERSION\" \
+  -e ANALYZER_RELEASE_BUILD=\"$BUILD_NUMBER\" \
+  -e ANALYZER_RELEASE_STAMP=\"$STAMP\" \
+  -e ANALYZER_RELEASE_WORKSPACE=/workspace \
+  -v \"$HOST_REPO_ROOT:/workspace\" \
+  -w /workspace \
+  $TAG"
 
-built_count=0
-for entry in "${LINUX_TARGETS[@]}"; do
-  IFS=':' read -r arch target linker <<< "$entry"
-  if [[ -n "$linker" ]] && ! command -v "$linker" >/dev/null 2>&1; then
-    log WARN "Skipping $target: cross-linker '$linker' not found (install via package manager)."
-    continue
-  fi
-  log INFO "Building $target ($arch)..."
-  if [[ "$DRY_RUN" -eq 0 ]]; then
-    rustup target add "$target"
-    if ! cargo build --locked --release --target "$target"; then
-      log WARN "Build failed for $target, skipping."
-      continue
-    fi
-  else
-    log INFO "[dry-run] rustup target add $target"
-    log INFO "[dry-run] cargo build --locked --release --target $target"
-  fi
-  archive_name="analyzer-cli_${VERSION}_${STAMP}_linux-${arch}.zip"
-  log INFO "Packaging $target -> $archive_name"
-  run_cmd "$RUNTIME run --rm -e ANALYZER_RELEASE_ARCHIVE_NAME=\"$archive_name\" -e ANALYZER_RELEASE_BINARY_PATH=\"target/$target/release/analyzer\" -v \"$HOST_REPO_ROOT:/workspace\" -w /workspace $TAG"
-  built_count=$((built_count + 1))
-done
-
-if [[ "$built_count" -eq 0 ]] && [[ "$DRY_RUN" -eq 0 ]]; then
-  log ERR "No targets were built successfully."
-  exit 1
-fi
-
-log OK "Release archives written to $REPO_ROOT/release"
+log OK "Release complete — archives written to $REPO_ROOT/dist/releases"

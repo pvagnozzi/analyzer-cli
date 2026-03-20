@@ -23,8 +23,25 @@ RUN apt-get update \
     && rm packages-microsoft-prod.deb \
     && apt-get update \
     && apt-get install -y --no-install-recommends powershell \
-    && curl -fsSL https://ohmyposh.dev/install.sh | bash -s -- -d /usr/local/bin \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js LTS (required for MCP servers via npx).
+RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install oh-my-posh and make themes available to all users.
+RUN curl -fsSL https://ohmyposh.dev/install.sh | bash -s -- -d /usr/local/bin \
+    && OMP_THEMES_SRC="$(oh-my-posh --print-install-dir 2>/dev/null || true)" \
+    && mkdir -p /usr/local/share/oh-my-posh \
+    && if [ -d "/root/.cache/oh-my-posh/themes" ]; then \
+         cp -r /root/.cache/oh-my-posh/themes /usr/local/share/oh-my-posh/; \
+       else \
+         mkdir -p /usr/local/share/oh-my-posh/themes; \
+       fi \
+    && mkdir -p /home/vscode/.cache/oh-my-posh \
+    && ln -sfn /usr/local/share/oh-my-posh/themes /home/vscode/.cache/oh-my-posh/themes \
+    && chown -R vscode:vscode /home/vscode/.cache
 
 COPY containers/devcontainer/post-create.sh /usr/local/share/analyzer-devcontainer/post-create.sh
 RUN chmod +x /usr/local/share/analyzer-devcontainer/post-create.sh

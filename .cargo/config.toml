@@ -1,5 +1,5 @@
-# Cross-compilation linker configuration for Linux targets.
-# The named linkers are provided by the following packages on Debian/Ubuntu:
+# Cross-compilation linker configuration.
+# Linux linkers are provided by the following Debian/Ubuntu packages:
 #   aarch64-linux-gnu-gcc → gcc-aarch64-linux-gnu
 #   i686-linux-gnu-gcc    → gcc-i686-linux-gnu
 

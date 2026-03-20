@@ -1,43 +1,51 @@
-# Analyzer CLI
+# 🔍 Analyzer CLI
 
-[![CI](https://github.com/exein-io/analyzer-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/exein-io/analyzer-cli/actions/workflows/ci.yml)
-[![Release](https://github.com/exein-io/analyzer-cli/actions/workflows/release.yml/badge.svg)](https://github.com/exein-io/analyzer-cli/actions/workflows/release.yml)
-[![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+<div align="center">
 
-`analyzer` is the official command-line interface for [Exein Analyzer](https://analyzer.exein.io), a platform for firmware and container security analysis.
+[![CI](https://github.com/exein-io/analyzer-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/exein-io/analyzer-cli/actions/workflows/ci.yml) [![Release](https://github.com/exein-io/analyzer-cli/actions/workflows/release.yml/badge.svg)](https://github.com/exein-io/analyzer-cli/actions/workflows/release.yml) [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE) [![Crates.io](https://img.shields.io/crates/v/analyzer-cli.svg)](https://crates.io/crates/analyzer-cli) [![MSRV](https://img.shields.io/badge/MSRV-1.85.0-orange?logo=rust)](rust-toolchain.toml) [![Made with Rust](https://img.shields.io/badge/Made%20with-Rust-CE422B?logo=rust)](https://www.rust-lang.org) [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md) [![GitHub last commit](https://img.shields.io/github/last-commit/exein-io/analyzer-cli)](https://github.com/exein-io/analyzer-cli/commits/main) [![GitHub issues](https://img.shields.io/github/issues/exein-io/analyzer-cli)](https://github.com/exein-io/analyzer-cli/issues) [![Platform: Linux](https://img.shields.io/badge/platform-Linux-lightgrey?logo=linux)](https://github.com/exein-io/analyzer-cli/releases) [![Platform: macOS](https://img.shields.io/badge/platform-macOS-lightgrey?logo=apple)](https://github.com/exein-io/analyzer-cli/releases) [![Platform: Windows](https://img.shields.io/badge/platform-Windows-lightgrey?logo=windows)](https://github.com/exein-io/analyzer-cli/releases) [![Security Audit](https://img.shields.io/badge/security-audit-green?logo=dependabot)](SECURITY.md)
 
-It lets you authenticate, upload firmware or container images, run security analyses, inspect findings, generate compliance reports, and download SBOMs directly from the terminal.
+</div>
 
-## Features
+> **`analyzer`** is the official command-line interface for [Exein Analyzer](https://analyzer.exein.io) — a platform for firmware and container security analysis.
 
-- Authenticate against Exein Analyzer with profile-aware configuration.
-- Create and manage objects representing devices or products.
-- Launch firmware and container scans from the CLI.
-- Inspect results for CVEs, malware, hardening, compliance, SBOMs, and more.
-- Export reports and artifacts for automation pipelines.
-- Use JSON output for scripting and shell integrations.
+Authenticate, upload firmware or container images, run security analyses, inspect findings, generate compliance reports, and download SBOMs — all directly from the terminal.
 
-## Installation
+---
 
-### Homebrew
+## ✨ Features
+
+| Feature | Description |
+|---------|-------------|
+| 🔐 **Authentication** | Profile-aware login against any Exein Analyzer instance |
+| 📦 **Object management** | Create and manage logical device/product groupings |
+| 🚀 **Scan launch** | Upload and trigger firmware and container image scans |
+| 🔎 **Results inspection** | Browse CVEs, malware, hardening, compliance, SBOMs |
+| 📄 **Reports & artifacts** | Export PDF reports, CycloneDX SBOMs, compliance reports |
+| 🤖 **Automation-ready** | JSON output mode for scripting and CI/CD pipelines |
+
+---
+
+## 📥 Installation
+
+### 🍺 Homebrew
 
 ```bash
 brew install exein-io/tools/analyzer
 ```
 
-### Shell installer
+### ⚡ Shell installer
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/exein-io/analyzer-cli/main/dist/install.sh | bash
 ```
 
-### Cargo
+### 📦 Cargo
 
 ```bash
 cargo install analyzer-cli
 ```
 
-### From source
+### 🛠️ From source
 
 ```bash
 git clone https://github.com/exein-io/analyzer-cli.git
@@ -45,7 +53,9 @@ cd analyzer-cli
 cargo install --path .
 ```
 
-## Quick start
+---
+
+## 🚀 Quick start
 
 ```bash
 # 1. Authenticate
@@ -69,9 +79,11 @@ analyzer scan overview --object a1b2c3d4-0000-0000-0000-000000000000
 analyzer scan sbom --object a1b2c3d4-0000-0000-0000-000000000000 -O sbom.json
 ```
 
-## Common usage
+---
 
-### Authentication
+## 📖 Common usage
+
+### 🔐 Authentication
 
 ```bash
 analyzer login
@@ -80,7 +92,7 @@ analyzer login --profile staging
 analyzer whoami
 ```
 
-### Objects
+### 📦 Objects
 
 ```bash
 analyzer object list
@@ -88,7 +100,7 @@ analyzer object new "my-device" --description "Router firmware" --tags iot,route
 analyzer object delete <UUID>
 ```
 
-### Scans
+### 🔬 Scans
 
 ```bash
 analyzer scan new -o <OBJECT_ID> -f firmware.bin -t linux -a info cve software-bom
@@ -101,9 +113,9 @@ analyzer scan report --scan <SCAN_ID> -O report.pdf --wait
 analyzer scan sbom --scan <SCAN_ID> -O sbom.json
 ```
 
-All commands that accept `--scan <SCAN_ID>` also accept `--object <OBJECT_ID>`, resolving the latest scan for the object automatically.
+> 💡 All commands that accept `--scan <SCAN_ID>` also accept `--object <OBJECT_ID>`, resolving the latest scan for the object automatically.
 
-### Output formats
+### 📊 Output formats
 
 ```bash
 analyzer object list
@@ -111,7 +123,7 @@ analyzer object list --format json
 analyzer scan overview --object <OBJECT_ID> --format json | jq '.analyses'
 ```
 
-### Shell completions
+### 🐚 Shell completions
 
 ```bash
 analyzer completions bash > /etc/bash_completion.d/analyzer
@@ -119,7 +131,9 @@ analyzer completions zsh > ~/.zfunc/_analyzer
 analyzer completions fish > ~/.config/fish/completions/analyzer.fish
 ```
 
-## Configuration
+---
+
+## ⚙️ Configuration
 
 Configuration is stored at `~/.config/analyzer/config.toml`.
 
@@ -133,22 +147,26 @@ url = "https://analyzer.exein.io/api/"
 
 Settings are resolved in this order:
 
-1. CLI flags
-2. Environment variables
-3. Config file
-4. Built-in defaults
+1. 🚩 CLI flags
+2. 🌍 Environment variables
+3. 📄 Config file
+4. 🔧 Built-in defaults
 
-Environment variables:
+**Environment variables:**
 
-- `ANALYZER_API_KEY`
-- `ANALYZER_URL`
-- `ANALYZER_PROFILE`
-- `ANALYZER_LANG` (`en`, `fr`, `de`, `nl`, `es`, `pt`, `zh`, `ko`, `ar`, `ja`)
-- `ANALYZER_CONFIG_DIR` (optional override for the config directory)
+| Variable | Description |
+|----------|-------------|
+| `ANALYZER_API_KEY` | API key for authentication |
+| `ANALYZER_URL` | Base API URL |
+| `ANALYZER_PROFILE` | Active profile name |
+| `ANALYZER_LANG` | Language code (`en`, `fr`, `de`, `nl`, `es`, `pt`, `zh`, `ko`, `ar`, `ja`) |
+| `ANALYZER_CONFIG_DIR` | Override the configuration directory |
 
-Use `--lang <code>` to switch the human-oriented CLI theme and messages at runtime. English remains the default, while JSON output stays stable for automation.
+Use `--lang <code>` to switch the human-oriented CLI theme and messages at runtime. English is the default; JSON output stays stable for automation regardless of language.
 
-## Supported scan types
+---
+
+## 🔬 Supported scan types
 
 | Type | Analyses |
 |------|----------|
@@ -156,15 +174,19 @@ Use `--lang <code>` to switch the human-oriented CLI theme and messages at runti
 | `docker` | `info`, `cve`, `password-hash`, `crypto`, `software-bom`, `malware`, `hardening`, `capabilities` |
 | `idf` | `info`, `cve`, `software-bom`, `symbols`, `tasks`, `stack-overflow` |
 
-Supported compliance standard:
+**Supported compliance standards:**
 
-- `cra`
+| Standard | CLI value |
+|----------|-----------|
+| 🇪🇺 Cyber Resilience Act | `cra` |
 
-## Development
+---
+
+## 🛠️ Development
 
 ### Prerequisites
 
-- Rust `1.85.0` or newer
+- 🦀 Rust `1.85.0` or newer
 - `rustfmt`
 - `clippy`
 
@@ -172,51 +194,44 @@ Supported compliance standard:
 
 Repository bootstrap scripts are available under `scripts/`:
 
-- `scripts/windows/setup-dev.ps1`
-- `scripts/windows/build.ps1`
-- `scripts/windows/release.ps1`
-- `scripts/windows/test.ps1`
-- `scripts/macos/setup-dev`
-- `scripts/macos/build`
-- `scripts/macos/release`
-- `scripts/macos/test`
-- `scripts/linux/setup-dev`
-- `scripts/linux/build`
-- `scripts/linux/release`
-- `scripts/linux/test`
+| Platform | Script |
+|----------|--------|
+| 🪟 Windows | `scripts/windows/environment/setup-dev.ps1` |
+| 🍎 macOS | `scripts/macos/environment/setup-dev` |
+| 🐧 Linux | `scripts/linux/environment/setup-dev` |
 
-Examples:
+Command scripts (`build`, `release`, `test`) are under `scripts/<platform>/commands/`.
+
+**Examples:**
 
 ```bash
-pwsh -File .\scripts\windows\setup-dev.ps1 --help
-pwsh -File .\scripts\windows\test.ps1
-zsh ./scripts/macos/setup-dev --help
-bash ./scripts/linux/build
-bash ./scripts/linux/setup-dev --help
+pwsh -File .\scripts\windows\environment\setup-dev.ps1 --help
+pwsh -File .\scripts\windows\commands\test.ps1
+zsh ./scripts/macos/environment/setup-dev --help
+bash ./scripts/linux/commands/build
 ```
 
-Release packaging conventions:
+**Release packaging conventions:**
 
-- `scripts/linux/release` produces one Linux archive for the current host architecture
-- `scripts/windows/release.ps1` produces one Windows archive for the current host architecture
-- `scripts/macos/release` produces one macOS archive for the current host architecture
-- archive names follow `analizer-cli_<Version>_<YYYYMMDD>_<platform>-<arch>.zip`
-- release archives are written under `release/`
-- use `ANALYZER_RELEASE_DATE` or `--release-date` / `-ReleaseDate` to override the date stamp
-- `ANALYZER_RELEASE_BUILD` and `--build-number` / `-BuildNumber` remain accepted for compatibility, but are ignored by the current archive naming convention
+- Archive names follow `analyzer-cli_<Version>_<YYYYMMDD>_<platform>-<arch>.zip`
+- Artifacts are written under `release/`
+- Use `ANALYZER_RELEASE_DATE` or `--release-date` / `-ReleaseDate` to override the date stamp
+- `ANALYZER_RELEASE_BUILD` / `--build-number` remain accepted for compatibility but are ignored by the current naming convention
 
-### Containers and devcontainer
+### 🐳 Containers and devcontainer
 
 Repository-owned container definitions live under `containers/`:
 
-- `containers/build`
-- `containers/release`
-- `containers/test`
-- `containers/devcontainer`
+| Directory | Purpose |
+|-----------|---------|
+| `containers/build` | Build environment |
+| `containers/release` | Release packaging |
+| `containers/test` | Test runner |
+| `containers/devcontainer` | VS Code Dev Container |
 
-VS Code Dev Containers can use `.devcontainer/devcontainer.json`, which is wired to `containers/devcontainer/Dockerfile`.
+VS Code Dev Containers use `.devcontainer/devcontainer.json`, wired to `containers/devcontainer/Dockerfile`.
 
-### Local workflow
+### 🧪 Local workflow
 
 ```bash
 cargo fmt --all
@@ -224,29 +239,49 @@ cargo clippy --all-targets -- -D warnings
 cargo test --locked
 ```
 
-`Cargo.lock` is committed because this repository ships an application, not a reusable library.
+> `Cargo.lock` is committed because this repository ships an application, not a reusable library.
 
-## Release and versioning
+---
 
-This repository follows a GitFlow-style branching strategy:
+## 🏷️ Release and versioning
 
-- `main` for production-ready history
-- `develop` for integration
-- `feature/*` for new work
-- `release/*` for stabilization
-- `hotfix/*` for urgent production fixes
+This repository follows a **GitFlow-style** branching strategy:
+
+| Branch | Purpose |
+|--------|---------|
+| `main` | Production-ready history |
+| `develop` | Integration branch |
+| `feature/*` | New functionality |
+| `release/*` | Release hardening |
+| `hotfix/*` | Urgent production fixes |
 
 Semantic versions are calculated with `GitVersion.yml`. Tagged releases use the `v*` convention and publish platform binaries through GitHub Actions.
 
-## GitHub Copilot and MCP
+---
+
+## 🤖 GitHub Copilot and MCP
 
 The repository includes a curated `.github` setup with:
 
-- repository and path-specific Copilot instructions
-- reusable prompts
-- custom agents for Rust maintenance and releases
-- example hooks
-- an `awesome-copilot` MCP server configuration
+- 📋 Repository and path-specific Copilot instructions
+- 🔄 Reusable prompts
+- 🤖 Custom agents for Rust maintenance and releases
+- 🪝 Example hooks
+- 🔌 An `awesome-copilot` MCP server configuration
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) to get started.
+
+## 🔒 Security
+
+Found a vulnerability? Please follow the responsible disclosure process in [SECURITY.md](SECURITY.md).
+
+## 📜 License
+
+This project is licensed under the [Apache 2.0 License](LICENSE).
 
 See `.github/mcp/README.md` and `.github/copilot-instructions.md` for details.
 
