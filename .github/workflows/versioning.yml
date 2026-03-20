@@ -47,7 +47,7 @@ jobs:
         run: |
           echo "## Version" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Branch:     ${GITHUB_REF_NAME}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Branch: ${GITHUB_REF_NAME}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Base:       ${{ steps.compute.outputs.majorMinorPatch }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- SemVer:     ${{ steps.compute.outputs.semVer }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Build meta: ${{ steps.compute.outputs.buildMetaData }}" >> "$GITHUB_STEP_SUMMARY"
